@@ -176,7 +176,7 @@ class EntityNotesJSView(HomeAssistantView):
 
 // Create global namespace for debugging
 window.entityNotes = {
-    version: '1.0.3-debug',
+    version: '1.0.4-fixed',
     debug: true
 };
 
@@ -492,29 +492,38 @@ function injectNotesIntoDialog(dialog) {
 function setupDialogObserver() {
     console.log('Entity Notes: Setting up dialog observer');
     
-    // Observer for the main document
+    const homeAssistant = document.querySelector('home-assistant');
+    if (!homeAssistant?.shadowRoot) {
+        console.log('Entity Notes: Home Assistant shadow root not found, retrying in 1 second...');
+        setTimeout(setupDialogObserver, 1000);
+        return;
+    }
+    
+    // Observer specifically for Home Assistant shadow DOM
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType === 1) {
+                    console.log('Entity Notes: Node added to shadow DOM:', node.tagName);
+                    
                     // Check if this is a more-info dialog
-                    if (node.tagName === 'HA-MORE-INFO-DIALOG' || 
-                        node.classList?.contains('more-info-dialog') ||
-                        node.querySelector?.('ha-more-info-dialog')) {
-                        
+                    if (node.tagName === 'HA-MORE-INFO-DIALOG') {
                         console.log('Entity Notes: More-info dialog detected:', node);
                         
-                        // Try injection with multiple delays
-                        [50, 200, 500, 1000].forEach(delay => {
-                            setTimeout(() => injectNotesIntoDialog(node), delay);
+                        // Try injection with multiple delays to ensure dialog is fully loaded
+                        [100, 300, 600, 1000].forEach(delay => {
+                            setTimeout(() => {
+                                console.log(`Entity Notes: Attempting injection after ${delay}ms delay`);
+                                injectNotesIntoDialog(node);
+                            }, delay);
                         });
                     }
                     
-                    // Also check child nodes
-                    const dialogs = node.querySelectorAll?.('ha-more-info-dialog, [class*="more-info"]');
-                    dialogs?.forEach(dialog => {
+                    // Also check for nested dialogs
+                    const nestedDialogs = node.querySelectorAll?.('ha-more-info-dialog');
+                    nestedDialogs?.forEach(dialog => {
                         console.log('Entity Notes: Found nested dialog:', dialog);
-                        [50, 200, 500].forEach(delay => {
+                        [100, 300, 600].forEach(delay => {
                             setTimeout(() => injectNotesIntoDialog(dialog), delay);
                         });
                     });
@@ -523,23 +532,24 @@ function setupDialogObserver() {
         });
     });
     
-    // Observe the entire document
-    observer.observe(document.body, { 
+    // Observe the Home Assistant shadow root (where dialogs are actually created)
+    console.log('Entity Notes: Observing home-assistant shadow root');
+    observer.observe(homeAssistant.shadowRoot, { 
         childList: true, 
         subtree: true 
     });
     
-    // Also observe home-assistant shadow root if available
-    const homeAssistant = document.querySelector('home-assistant');
-    if (homeAssistant?.shadowRoot) {
-        console.log('Entity Notes: Observing home-assistant shadow root');
-        observer.observe(homeAssistant.shadowRoot, { 
-            childList: true, 
-            subtree: true 
+    // Also check for existing dialogs in shadow root
+    const existingDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
+    if (existingDialogs.length > 0) {
+        console.log('Entity Notes: Found existing dialogs in shadow root:', existingDialogs.length);
+        existingDialogs.forEach(dialog => {
+            setTimeout(() => injectNotesIntoDialog(dialog), 100);
         });
     }
     
     window.entityNotes.observer = observer;
+    console.log('Entity Notes: Observer setup complete');
 }
 
 // Initialize when DOM is ready
@@ -547,11 +557,15 @@ function initialize() {
     console.log('Entity Notes: Initializing...');
     setupDialogObserver();
     
-    // Try to inject into any existing dialogs
-    const existingDialogs = document.querySelectorAll('ha-more-info-dialog, [class*="more-info"]');
-    existingDialogs.forEach(dialog => {
-        setTimeout(() => injectNotesIntoDialog(dialog), 100);
-    });
+    // Try to inject into any existing dialogs in shadow DOM
+    const homeAssistant = document.querySelector('home-assistant');
+    if (homeAssistant?.shadowRoot) {
+        const existingDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
+        console.log('Entity Notes: Found existing dialogs during init:', existingDialogs.length);
+        existingDialogs.forEach(dialog => {
+            setTimeout(() => injectNotesIntoDialog(dialog), 100);
+        });
+    }
     
     console.log('Entity Notes: Initialization complete');
 }
