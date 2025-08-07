@@ -5,8 +5,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.storage import Store
+from homeassistant.components.frontend import add_extra_js_url
 from aiohttp import web
 import json
+import os
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +41,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     # Register the API view
     hass.http.register_view(EntityNotesView())
+
+    # Register frontend resource
+    # This automatically adds the JavaScript file to the frontend
+    integration_dir = os.path.dirname(__file__)
+    js_file = os.path.join(integration_dir, "..", "..", "www", "entity-notes.js")
+    
+    if os.path.exists(js_file):
+        add_extra_js_url(hass, "/local/entity-notes.js")
+        _LOGGER.info("Registered frontend resource: /local/entity-notes.js")
+    else:
+        _LOGGER.warning("Frontend resource not found: %s", js_file)
 
     _LOGGER.info("Entity Notes integration setup complete")
     return True

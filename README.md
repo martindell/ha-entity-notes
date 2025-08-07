@@ -33,7 +33,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 2. Go to "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add `https://github.com/yourusername/ha-entity-notes` as repository
+5. Add `https://github.com/martindell/ha-entity-notes` as repository
 6. Select "Integration" as category
 7. Click "Add"
 8. Search for "Entity Notes" and install
@@ -41,7 +41,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ### Manual Installation
 
-1. Download the latest release from the [releases page](https://github.com/yourusername/ha-entity-notes/releases)
+1. Download the latest release from the [releases page](https://github.com/martindell/ha-entity-notes/releases)
 2. Extract the contents
 3. Copy the `custom_components/entity_notes` folder to your Home Assistant `custom_components` directory
 4. Copy the `www/entity-notes.js` file to your Home Assistant `www` directory
@@ -59,15 +59,18 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ### Frontend Resource
 
-The JavaScript file needs to be loaded as a frontend resource. Add this to your `configuration.yaml`:
+The integration automatically registers its frontend JavaScript file when loaded. No manual configuration is required in `configuration.yaml`.
+
+**Note**: If you previously added the frontend resource manually to your `configuration.yaml`, you can remove this entry:
 
 ```yaml
+# This is no longer needed - remove if present
 frontend:
   extra_module_url:
     - /local/entity-notes.js
 ```
 
-After adding this configuration, restart Home Assistant.
+The integration will handle frontend resource loading automatically.
 
 ## Usage
 
@@ -152,7 +155,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you encounter any issues or have questions:
 
 1. Check the [troubleshooting section](#troubleshooting)
-2. Search existing [issues](https://github.com/yourusername/ha-entity-notes/issues)
+2. Search existing [issues](https://github.com/martindell/ha-entity-notes/issues)
 3. Create a new issue with detailed information about your problem
 
 ## Changelog
