@@ -17,54 +17,82 @@ DOMAIN = "entity_notes"
 STORAGE_VERSION = 1
 STORAGE_KEY = "entity_notes.notes"
 
+# Module-level debug log to see if this file is being loaded
+_LOGGER.warning("🔧 DEBUG: __init__.py module loaded for domain: %s", DOMAIN)
+
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Entity Notes integration from configuration.yaml."""
+    _LOGGER.warning("🔧 DEBUG: async_setup called with config: %s", config)
     # This is for backward compatibility with configuration.yaml
     # The main setup now happens in async_setup_entry
+    _LOGGER.warning("🔧 DEBUG: async_setup completed successfully")
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Entity Notes from a config entry."""
-    _LOGGER.info("Setting up Entity Notes integration")
-
-    # Initialize storage
-    store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
-
-    # Load existing notes
-    try:
-        stored_data = await store.async_load()
-        notes_data = stored_data or {}
-    except Exception as e:
-        _LOGGER.warning("Could not load notes storage, starting fresh: %s", e)
-        notes_data = {}
-
-    # Store the storage instance and data in hass.data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN] = {
-        "store": store,
-        "notes": notes_data
-    }
-
-    # Register the API view
-    hass.http.register_view(EntityNotesView())
+    _LOGGER.warning("🔧 DEBUG: async_setup_entry called with entry: %s", entry)
+    _LOGGER.warning("🔧 DEBUG: Entry data: %s", entry.data)
+    _LOGGER.warning("🔧 DEBUG: Entry domain: %s", entry.domain)
+    _LOGGER.warning("🔧 DEBUG: Entry title: %s", entry.title)
     
-    # Register the JavaScript file serving view
-    hass.http.register_view(EntityNotesJSView())
-
-    # Register frontend resource
-    # Serve the JS file directly from the integration
     try:
-        # Register the JS file served by our own endpoint
-        add_extra_js_url(hass, "/api/entity_notes/entity-notes.js")
-        _LOGGER.info("Registered frontend resource: /api/entity_notes/entity-notes.js")
-            
-    except Exception as e:
-        _LOGGER.error("Failed to register frontend resource: %s", e)
+        _LOGGER.warning("🔧 DEBUG: Starting Entity Notes integration setup")
 
-    _LOGGER.info("Entity Notes integration setup complete")
-    return True
+        # Initialize storage
+        _LOGGER.warning("🔧 DEBUG: Initializing storage")
+        store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+
+        # Load existing notes
+        try:
+            _LOGGER.warning("🔧 DEBUG: Loading existing notes from storage")
+            stored_data = await store.async_load()
+            notes_data = stored_data or {}
+            _LOGGER.warning("🔧 DEBUG: Loaded %d existing notes", len(notes_data))
+        except Exception as e:
+            _LOGGER.warning("🔧 DEBUG: Could not load notes storage, starting fresh: %s", e)
+            notes_data = {}
+
+        # Store the storage instance and data in hass.data
+        _LOGGER.warning("🔧 DEBUG: Setting up hass.data for domain %s", DOMAIN)
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN] = {
+            "store": store,
+            "notes": notes_data
+        }
+        _LOGGER.warning("🔧 DEBUG: hass.data setup complete")
+
+        # Register the API view
+        _LOGGER.warning("🔧 DEBUG: Registering EntityNotesView")
+        hass.http.register_view(EntityNotesView())
+        _LOGGER.warning("🔧 DEBUG: EntityNotesView registered successfully")
+        
+        # Register the JavaScript file serving view
+        _LOGGER.warning("🔧 DEBUG: Registering EntityNotesJSView")
+        hass.http.register_view(EntityNotesJSView())
+        _LOGGER.warning("🔧 DEBUG: EntityNotesJSView registered successfully")
+
+        # Register frontend resource
+        # Serve the JS file directly from the integration
+        try:
+            _LOGGER.warning("🔧 DEBUG: Registering frontend resource")
+            # Register the JS file served by our own endpoint
+            add_extra_js_url(hass, "/api/entity_notes/entity-notes.js")
+            _LOGGER.warning("🔧 DEBUG: Frontend resource registered: /api/entity_notes/entity-notes.js")
+                
+        except Exception as e:
+            _LOGGER.error("🔧 DEBUG: Failed to register frontend resource: %s", e)
+
+        _LOGGER.warning("🔧 DEBUG: Entity Notes integration setup complete successfully")
+        return True
+        
+    except Exception as e:
+        _LOGGER.error("🔧 DEBUG: CRITICAL ERROR in async_setup_entry: %s", e)
+        _LOGGER.error("🔧 DEBUG: Exception type: %s", type(e).__name__)
+        import traceback
+        _LOGGER.error("🔧 DEBUG: Full traceback: %s", traceback.format_exc())
+        return False
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
