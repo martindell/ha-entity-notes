@@ -49,17 +49,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register the API view
     hass.http.register_view(EntityNotesView())
+    
+    # Register the JavaScript file serving view
+    hass.http.register_view(EntityNotesJSView())
 
     # Register frontend resource
-    # This automatically adds the JavaScript file to the frontend
-    integration_dir = os.path.dirname(__file__)
-    js_file = os.path.join(integration_dir, "..", "..", "www", "entity-notes.js")
-    
-    if os.path.exists(js_file):
-        add_extra_js_url(hass, "/local/entity-notes.js")
-        _LOGGER.info("Registered frontend resource: /local/entity-notes.js")
-    else:
-        _LOGGER.warning("Frontend resource not found: %s", js_file)
+    # Serve the JS file directly from the integration
+    try:
+        # Register the JS file served by our own endpoint
+        add_extra_js_url(hass, "/api/entity_notes/entity-notes.js")
+        _LOGGER.info("Registered frontend resource: /api/entity_notes/entity-notes.js")
+            
+    except Exception as e:
+        _LOGGER.error("Failed to register frontend resource: %s", e)
 
     _LOGGER.info("Entity Notes integration setup complete")
     return True
@@ -133,3 +135,34 @@ class EntityNotesView(HomeAssistantView):
         except Exception as e:
             _LOGGER.error("Error deleting note for %s: %s", entity_id, e)
             return web.json_response({"error": str(e)}, status=500)
+
+class EntityNotesJSView(HomeAssistantView):
+    """Serve the Entity Notes JavaScript file."""
+
+    url = "/api/entity_notes/entity-notes.js"
+    name = "api:entity_notes_js"
+    requires_auth = False
+
+    async def get(self, request):
+        """Serve the JavaScript file."""
+        try:
+            # Get the path to the JavaScript file
+            integration_dir = os.path.dirname(__file__)
+            js_file_path = os.path.join(integration_dir, "..", "..", "www", "entity-notes.js")
+            
+            # Check if file exists
+            if not os.path.exists(js_file_path):
+                _LOGGER.error("JavaScript file not found at: %s", js_file_path)
+                return web.Response(text="// JavaScript file not found", content_type="application/javascript", status=404)
+            
+            # Read and serve the file
+            with open(js_file_path, 'r', encoding='utf-8') as f:
+                js_content = f.read()
+            
+            _LOGGER.debug("Serving JavaScript file from: %s", js_file_path)
+            return web.Response(text=js_content, content_type="application/javascript")
+            
+        except Exception as e:
+            _LOGGER.error("Error serving JavaScript file: %s", e)
+            return web.Response(text="// Error loading JavaScript file", content_type="application/javascript", status=500)
+
