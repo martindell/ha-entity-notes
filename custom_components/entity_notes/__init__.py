@@ -2,6 +2,7 @@
 import logging
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers.storage import Store
@@ -19,7 +20,13 @@ STORAGE_KEY = "entity_notes.notes"
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the Entity Notes integration."""
+    """Set up the Entity Notes integration from configuration.yaml."""
+    # This is for backward compatibility with configuration.yaml
+    # The main setup now happens in async_setup_entry
+    return True
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Entity Notes from a config entry."""
     _LOGGER.info("Setting up Entity Notes integration")
 
     # Initialize storage
@@ -34,6 +41,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         notes_data = {}
 
     # Store the storage instance and data in hass.data
+    hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN] = {
         "store": store,
         "notes": notes_data
@@ -54,6 +62,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _LOGGER.warning("Frontend resource not found: %s", js_file)
 
     _LOGGER.info("Entity Notes integration setup complete")
+    return True
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    # Clean up if needed
     return True
 
 class EntityNotesView(HomeAssistantView):
