@@ -1,10 +1,6 @@
 
 # Entity Notes for Home Assistant
 
-[![hacs_badge](https://imgs.search.brave.com/a50DQgPTlWxzI2cGSgN1Pn2W0r19V94i_LgF89jgpws/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9wZWF0/ZWFzZWEuZGUvYXNz/ZXRzL2ltYWdlcy9i/YWRnZS1nZW5lcmF0/b3ItbWFzdG9kb24t/YmxhY2std2l0aC1t/YXN0b2Rvbi1sb2dv/LW91dHB1dC5wbmc)
-[![GitHub release](https://imgs.search.brave.com/9cPbqClqJLoEwVCZXmWRJGIwWNXr2Qmgudfwjc2KQj0/rs:fit:0:180:1:0/g:ce/aHR0cHM6Ly9kb2Nz/LmdpdGh1Yi5jb20v/YXNzZXRzL2NiLTEy/OTU4L2ltYWdlcy9o/ZWxwL3JlcG9zaXRv/cnkvYWN0aW9ucy10/YWItZ2xvYmFsLW5h/di11cGRhdGUucG5n)
-[![License](https://img.shields.io/github/license/yourusername/ha-entity-notes.svg)](LICENSE)
-
 A Home Assistant integration that allows you to add custom notes to any entity through the "more info" dialog. Perfect for documenting device locations, maintenance schedules, configuration details, or any other information you want to associate with your entities.
 
 ## Features
@@ -33,7 +29,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 2. Go to "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add `https://github.com/yourusername/ha-entity-notes` as repository
+5. Add `https://github.com/martindell/ha-entity-notes` as repository
 6. Select "Integration" as category
 7. Click "Add"
 8. Search for "Entity Notes" and install
@@ -41,7 +37,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ### Manual Installation
 
-1. Download the latest release from the [releases page](https://github.com/yourusername/ha-entity-notes/releases)
+1. Download the latest release from the [releases page](https://github.com/martindell/ha-entity-notes/releases)
 2. Extract the contents
 3. Copy the `custom_components/entity_notes` folder to your Home Assistant `custom_components` directory
 4. Copy the `www/entity-notes.js` file to your Home Assistant `www` directory
@@ -59,15 +55,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ### Frontend Resource
 
-The JavaScript file needs to be loaded as a frontend resource. Add this to your `configuration.yaml`:
-
-```yaml
-frontend:
-  extra_module_url:
-    - /local/entity-notes.js
-```
-
-After adding this configuration, restart Home Assistant.
+ongoing ..
 
 ## Usage
 
