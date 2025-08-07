@@ -176,7 +176,7 @@ class EntityNotesJSView(HomeAssistantView):
 
 // Create global namespace with configurable debug mode
 window.entityNotes = {
-    version: '1.1.0',
+    version: '1.1.1',
     debug: false,  // Default: quiet mode for production
     
     // Convenience methods for users
