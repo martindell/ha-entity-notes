@@ -176,7 +176,7 @@ class EntityNotesJSView(HomeAssistantView):
 
 // Create global namespace with configurable debug mode
 window.entityNotes = {
-    version: '1.1.1',
+    version: '1.2.0-ui-improved',
     debug: false,  // Default: quiet mode for production
     
     // Convenience methods for users
@@ -219,22 +219,17 @@ class EntityNotesCard extends HTMLElement {
         this.shadowRoot.innerHTML = `
             <style>
                 .entity-notes-container {
-                    margin: 16px 0;
-                    padding: 16px;
-                    border: 1px solid var(--divider-color, #e0e0e0);
-                    border-radius: 8px;
-                    background: var(--card-background-color, white);
-                }
-                .entity-notes-title {
-                    font-weight: 500;
-                    margin-bottom: 8px;
-                    color: var(--primary-text-color, black);
+                    margin: 8px 0;
+                    padding: 8px;
+                    border: none;
+                    border-radius: 4px;
+                    background: transparent;
                 }
                 .entity-notes-textarea {
                     width: 100%;
-                    min-height: 40px;
+                    min-height: 36px;
                     max-height: 300px;
-                    padding: 8px;
+                    padding: 6px 8px;
                     border: 1px solid var(--divider-color, #e0e0e0);
                     border-radius: 4px;
                     background: var(--primary-background-color, white);
@@ -246,10 +241,11 @@ class EntityNotesCard extends HTMLElement {
                     overflow: hidden;
                     box-sizing: border-box;
                     transition: height 0.1s ease;
+                    outline: none;
                 }
                 .entity-notes-textarea:focus {
-                    outline: 2px solid var(--primary-color, #03a9f4);
-                    outline-offset: -2px;
+                    border-color: var(--primary-color, #03a9f4);
+                    box-shadow: 0 0 0 1px var(--primary-color, #03a9f4);
                 }
                 .entity-notes-actions {
                     display: flex;
@@ -288,10 +284,9 @@ class EntityNotesCard extends HTMLElement {
                 }
             </style>
             <div class="entity-notes-container">
-                <div class="entity-notes-title">Notes</div>
                 <textarea 
                     class="entity-notes-textarea" 
-                    placeholder="Add notes for this entity..."
+                    placeholder="Notes"
                     maxlength="200"
                     rows="1"
                 ></textarea>
