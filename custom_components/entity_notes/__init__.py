@@ -174,21 +174,43 @@ class EntityNotesJSView(HomeAssistantView):
     # Embedded JavaScript content to avoid file I/O operations
     JS_CONTENT = """console.log('Entity Notes: Script loading...');
 
-// Create global namespace for debugging
+// Create global namespace with configurable debug mode
 window.entityNotes = {
-    version: '1.0.6-critical-fix',
-    debug: true
+    version: '1.1.0',
+    debug: false,  // Default: quiet mode for production
+    
+    // Convenience methods for users
+    enableDebug: function() { 
+        this.debug = true; 
+        console.log('Entity Notes: Debug mode enabled. Refresh page or open entity dialogs to see debug output.');
+    },
+    disableDebug: function() { 
+        this.debug = false; 
+        console.log('Entity Notes: Debug mode disabled.');
+    }
 };
+
+// Debug logging function - only logs when debug mode is enabled
+function debugLog(message) {
+    if (window.entityNotes.debug) {
+        console.log(message);
+    }
+}
+
+// Always log critical messages (errors, warnings, success)
+function infoLog(message) {
+    console.log(message);
+}
 
 class EntityNotesCard extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
-        console.log('Entity Notes: EntityNotesCard constructor called');
+        debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
     connectedCallback() {
-        console.log('Entity Notes: EntityNotesCard connected');
+        debugLog('Entity Notes: EntityNotesCard connected');
         this.render();
         this.setupEventListeners();
     }
@@ -322,7 +344,7 @@ class EntityNotesCard extends HTMLElement {
 
     async loadNote() {
         const entityId = this.getAttribute('entity-id');
-        console.log('Entity Notes: Loading note for', entityId);
+        debugLog('Entity Notes: Loading note for ' + entityId);
         if (!entityId) return;
 
         try {
@@ -345,7 +367,7 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const note = textarea.value.trim();
 
-        console.log('Entity Notes: Saving note for', entityId, ':', note);
+        debugLog('Entity Notes: Saving note for ' + entityId + ': ' + note);
 
         try {
             const response = await fetch(`/api/entity_notes/${entityId}`, {
@@ -355,7 +377,7 @@ class EntityNotesCard extends HTMLElement {
             });
 
             if (response.ok) {
-                console.log('Entity Notes: Note saved successfully');
+                debugLog('Entity Notes: Note saved successfully');
             } else {
                 console.error('Entity Notes: Save failed');
             }
@@ -366,7 +388,7 @@ class EntityNotesCard extends HTMLElement {
 
     async deleteNote() {
         const entityId = this.getAttribute('entity-id');
-        console.log('Entity Notes: Deleting note for', entityId);
+        debugLog('Entity Notes: Deleting note for ' + entityId);
 
         try {
             const response = await fetch(`/api/entity_notes/${entityId}`, {
@@ -378,7 +400,7 @@ class EntityNotesCard extends HTMLElement {
                 textarea.value = '';
                 this.updateCharCount();
                 this.autoResize();
-                console.log('Entity Notes: Note deleted successfully');
+                debugLog('Entity Notes: Note deleted successfully');
             }
         } catch (error) {
             console.error('Entity Notes: Error deleting note:', error);
@@ -389,16 +411,16 @@ class EntityNotesCard extends HTMLElement {
 // Register both element names for compatibility
 if (!customElements.get('entity-notes-card')) {
     customElements.define('entity-notes-card', EntityNotesCard);
-    console.log('Entity Notes: Custom element entity-notes-card registered');
+    infoLog('Entity Notes: Integration loaded successfully');
 }
 
 // Wrap second registration in try-catch to prevent script execution from stopping
 if (!customElements.get('entity-notes')) {
     try {
         customElements.define('entity-notes', EntityNotesCard);
-        console.log('Entity Notes: Custom element entity-notes registered');
+        debugLog('Entity Notes: Secondary element registration successful');
     } catch (error) {
-        console.log('Entity Notes: Second element registration failed (this is OK):', error.message);
+        debugLog('Entity Notes: Secondary element registration failed (this is OK): ' + error.message);
         // This is expected - browsers don't allow the same constructor for multiple element names
         // The first registration (entity-notes-card) is sufficient for functionality
     }
@@ -408,7 +430,7 @@ if (!customElements.get('entity-notes')) {
 window.entityNotes.EntityNotesCard = EntityNotesCard;
 
 function findEntityId(dialog) {
-    console.log('Entity Notes: Finding entity ID for dialog', dialog);
+    debugLog('Entity Notes: Finding entity ID for dialog');
     
     // Try multiple methods to get entity ID
     const methods = [
@@ -428,7 +450,7 @@ function findEntityId(dialog) {
         try {
             const entityId = method();
             if (entityId) {
-                console.log('Entity Notes: Found entity ID:', entityId);
+                debugLog('Entity Notes: Found entity ID: ' + entityId);
                 return entityId;
             }
         } catch (e) {
@@ -436,27 +458,27 @@ function findEntityId(dialog) {
         }
     }
     
-    console.log('Entity Notes: No entity ID found');
+    debugLog('Entity Notes: No entity ID found');
     return null;
 }
 
 function injectNotesIntoDialog(dialog) {
-    console.log('Entity Notes: Attempting to inject notes into dialog', dialog);
+    debugLog('Entity Notes: Attempting to inject notes into dialog');
     
     if (!dialog || !dialog.shadowRoot) {
-        console.log('Entity Notes: No dialog or shadowRoot found');
+        debugLog('Entity Notes: No dialog or shadowRoot found');
         return;
     }
     
     // Check if already injected
     if (dialog.shadowRoot.querySelector('entity-notes-card')) {
-        console.log('Entity Notes: Notes already injected');
+        debugLog('Entity Notes: Notes already injected');
         return;
     }
     
     const entityId = findEntityId(dialog);
     if (!entityId) {
-        console.log('Entity Notes: No entity ID found for dialog');
+        debugLog('Entity Notes: No entity ID found for dialog');
         return;
     }
     
@@ -473,13 +495,13 @@ function injectNotesIntoDialog(dialog) {
     for (const selector of selectors) {
         contentArea = dialog.shadowRoot.querySelector(selector);
         if (contentArea) {
-            console.log('Entity Notes: Found content area with selector:', selector);
+            debugLog('Entity Notes: Found content area with selector: ' + selector);
             break;
         }
     }
     
     if (!contentArea) {
-        console.log('Entity Notes: No content area found');
+        debugLog('Entity Notes: No content area found');
         return;
     }
     
@@ -488,7 +510,7 @@ function injectNotesIntoDialog(dialog) {
     notesCard.setAttribute('entity-id', entityId);
     contentArea.appendChild(notesCard);
     
-    console.log('Entity Notes: Notes card injected for entity:', entityId);
+    debugLog('Entity Notes: Notes card injected for entity: ' + entityId);
     
     // Load the note after a short delay
     setTimeout(() => {
@@ -497,11 +519,11 @@ function injectNotesIntoDialog(dialog) {
 }
 
 function setupDialogObserver() {
-    console.log('Entity Notes: Setting up dialog observer');
+    debugLog('Entity Notes: Setting up dialog observer');
     
     const homeAssistant = document.querySelector('home-assistant');
     if (!homeAssistant?.shadowRoot) {
-        console.log('Entity Notes: Home Assistant shadow root not found, retrying in 1 second...');
+        debugLog('Entity Notes: Home Assistant shadow root not found, retrying in 1 second...');
         setTimeout(setupDialogObserver, 1000);
         return;
     }
@@ -511,16 +533,16 @@ function setupDialogObserver() {
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType === 1) {
-                    console.log('Entity Notes: Node added to shadow DOM:', node.tagName);
+                    debugLog('Entity Notes: Node added to shadow DOM: ' + node.tagName);
                     
                     // Check if this is a more-info dialog
                     if (node.tagName === 'HA-MORE-INFO-DIALOG') {
-                        console.log('Entity Notes: More-info dialog detected:', node);
+                        debugLog('Entity Notes: More-info dialog detected');
                         
                         // Try injection with multiple delays to ensure dialog is fully loaded
                         [100, 300, 600, 1000].forEach(delay => {
                             setTimeout(() => {
-                                console.log(`Entity Notes: Attempting injection after ${delay}ms delay`);
+                                debugLog('Entity Notes: Attempting injection after ' + delay + 'ms delay');
                                 injectNotesIntoDialog(node);
                             }, delay);
                         });
@@ -529,7 +551,7 @@ function setupDialogObserver() {
                     // Also check for nested dialogs
                     const nestedDialogs = node.querySelectorAll?.('ha-more-info-dialog');
                     nestedDialogs?.forEach(dialog => {
-                        console.log('Entity Notes: Found nested dialog:', dialog);
+                        debugLog('Entity Notes: Found nested dialog');
                         [100, 300, 600].forEach(delay => {
                             setTimeout(() => injectNotesIntoDialog(dialog), delay);
                         });
@@ -540,7 +562,7 @@ function setupDialogObserver() {
     });
     
     // Observe the Home Assistant shadow root (where dialogs are actually created)
-    console.log('Entity Notes: Observing home-assistant shadow root');
+    debugLog('Entity Notes: Observing home-assistant shadow root');
     observer.observe(homeAssistant.shadowRoot, { 
         childList: true, 
         subtree: true 
@@ -549,32 +571,32 @@ function setupDialogObserver() {
     // Also check for existing dialogs in shadow root
     const existingDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
     if (existingDialogs.length > 0) {
-        console.log('Entity Notes: Found existing dialogs in shadow root:', existingDialogs.length);
+        debugLog('Entity Notes: Found existing dialogs in shadow root: ' + existingDialogs.length);
         existingDialogs.forEach(dialog => {
             setTimeout(() => injectNotesIntoDialog(dialog), 100);
         });
     }
     
     window.entityNotes.observer = observer;
-    console.log('Entity Notes: Observer setup complete');
+    infoLog('Entity Notes: Observer setup complete');
 }
 
 // Initialize when DOM is ready
 function initialize() {
-    console.log('Entity Notes: Initializing...');
+    debugLog('Entity Notes: Initializing...');
     setupDialogObserver();
     
     // Try to inject into any existing dialogs in shadow DOM
     const homeAssistant = document.querySelector('home-assistant');
     if (homeAssistant?.shadowRoot) {
         const existingDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
-        console.log('Entity Notes: Found existing dialogs during init:', existingDialogs.length);
+        debugLog('Entity Notes: Found existing dialogs during init: ' + existingDialogs.length);
         existingDialogs.forEach(dialog => {
             setTimeout(() => injectNotesIntoDialog(dialog), 100);
         });
     }
     
-    console.log('Entity Notes: Initialization complete');
+    debugLog('Entity Notes: Initialization complete');
 }
 
 // Make initialize function globally accessible for debugging
@@ -583,12 +605,12 @@ window.entityNotes.initialize = initialize;
 // Robust initialization with error handling
 function initializeWithErrorHandling() {
     try {
-        console.log('Entity Notes: Starting initialization...');
-        console.log('Entity Notes: DOM ready state:', document.readyState);
+        debugLog('Entity Notes: Starting initialization...');
+        debugLog('Entity Notes: DOM ready state: ' + document.readyState);
         
         initialize();
         
-        console.log('Entity Notes: Initialization completed successfully');
+        infoLog('Entity Notes: Initialization completed successfully');
     } catch (error) {
         console.error('Entity Notes: Initialization failed:', error);
         console.error('Entity Notes: Error stack:', error.stack);
@@ -596,7 +618,7 @@ function initializeWithErrorHandling() {
         // Try fallback initialization after delay
         setTimeout(() => {
             try {
-                console.log('Entity Notes: Attempting fallback initialization...');
+                debugLog('Entity Notes: Attempting fallback initialization...');
                 initialize();
             } catch (fallbackError) {
                 console.error('Entity Notes: Fallback initialization also failed:', fallbackError);
@@ -607,10 +629,10 @@ function initializeWithErrorHandling() {
 
 // Handle all DOM ready scenarios
 if (document.readyState === 'loading') {
-    console.log('Entity Notes: DOM still loading, waiting for DOMContentLoaded...');
+    debugLog('Entity Notes: DOM still loading, waiting for DOMContentLoaded...');
     document.addEventListener('DOMContentLoaded', initializeWithErrorHandling);
 } else {
-    console.log('Entity Notes: DOM already ready, initializing immediately...');
+    debugLog('Entity Notes: DOM already ready, initializing immediately...');
     // Use setTimeout to ensure this runs after the current execution stack
     setTimeout(initializeWithErrorHandling, 0);
 }
@@ -618,14 +640,14 @@ if (document.readyState === 'loading') {
 // Additional fallback: try initialization after a delay regardless
 setTimeout(() => {
     if (!window.entityNotes.observer) {
-        console.log('Entity Notes: Observer not found, triggering fallback initialization...');
+        debugLog('Entity Notes: Observer not found, triggering fallback initialization...');
         initializeWithErrorHandling();
     } else {
-        console.log('Entity Notes: Observer already exists, no fallback needed');
+        debugLog('Entity Notes: Observer already exists, no fallback needed');
     }
 }, 2000);
 
-console.log('Entity Notes: Script loaded successfully');"""
+infoLog('Entity Notes: Script loaded successfully');"""
 
     async def get(self, request):
         """Serve the JavaScript file."""
