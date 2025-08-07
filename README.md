@@ -143,7 +143,3 @@ If you encounter any issues or have questions:
 
 ### v1.0.0
 - Initial release
-- Basic note functionality for all entities
-- Persistent storage
-- Auto-resizing textarea
-- Character limit with visual feedback
