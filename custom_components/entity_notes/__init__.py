@@ -176,7 +176,7 @@ class EntityNotesJSView(HomeAssistantView):
 
 // Create global namespace for debugging
 window.entityNotes = {
-    version: '1.0.4-fixed',
+    version: '1.0.5-init-fix',
     debug: true
 };
 
@@ -570,11 +570,53 @@ function initialize() {
     console.log('Entity Notes: Initialization complete');
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initialize);
-} else {
-    initialize();
+// Make initialize function globally accessible for debugging
+window.entityNotes.initialize = initialize;
+
+// Robust initialization with error handling
+function initializeWithErrorHandling() {
+    try {
+        console.log('Entity Notes: Starting initialization...');
+        console.log('Entity Notes: DOM ready state:', document.readyState);
+        
+        initialize();
+        
+        console.log('Entity Notes: Initialization completed successfully');
+    } catch (error) {
+        console.error('Entity Notes: Initialization failed:', error);
+        console.error('Entity Notes: Error stack:', error.stack);
+        
+        // Try fallback initialization after delay
+        setTimeout(() => {
+            try {
+                console.log('Entity Notes: Attempting fallback initialization...');
+                initialize();
+            } catch (fallbackError) {
+                console.error('Entity Notes: Fallback initialization also failed:', fallbackError);
+            }
+        }, 3000);
+    }
 }
+
+// Handle all DOM ready scenarios
+if (document.readyState === 'loading') {
+    console.log('Entity Notes: DOM still loading, waiting for DOMContentLoaded...');
+    document.addEventListener('DOMContentLoaded', initializeWithErrorHandling);
+} else {
+    console.log('Entity Notes: DOM already ready, initializing immediately...');
+    // Use setTimeout to ensure this runs after the current execution stack
+    setTimeout(initializeWithErrorHandling, 0);
+}
+
+// Additional fallback: try initialization after a delay regardless
+setTimeout(() => {
+    if (!window.entityNotes.observer) {
+        console.log('Entity Notes: Observer not found, triggering fallback initialization...');
+        initializeWithErrorHandling();
+    } else {
+        console.log('Entity Notes: Observer already exists, no fallback needed');
+    }
+}, 2000);
 
 console.log('Entity Notes: Script loaded successfully');"""
 
