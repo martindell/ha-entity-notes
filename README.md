@@ -39,8 +39,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 1. Download the latest release from the [releases page](https://github.com/martindell/ha-entity-notes/releases)
 2. Extract the contents
 3. Copy the `custom_components/entity_notes` folder to your Home Assistant `custom_components` directory
-4. Copy the `www/entity-notes.js` file to your Home Assistant `www` directory
-5. Restart Home Assistant
+4. Restart Home Assistant
 
 ## Configuration
 
