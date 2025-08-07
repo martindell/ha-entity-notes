@@ -1,0 +1,45 @@
+
+set_note:
+  name: Set Note
+  description: Set a note for an entity (max 200 characters)
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity to add a note to
+      required: true
+      selector:
+        entity: {}
+    note:
+      name: Note
+      description: The note text (max 200 characters)
+      required: true
+      selector:
+        text:
+          multiline: true
+          max: 200
+
+get_note:
+  name: Get Note
+  description: Get the note for an entity
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity to get the note for
+      required: true
+      selector:
+        entity: {}
+
+delete_note:
+  name: Delete Note
+  description: Delete the note for an entity
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity to delete the note for
+      required: true
+      selector:
+        entity: {}
+
+list_notes:
+  name: List Notes
+  description: List all entity notes

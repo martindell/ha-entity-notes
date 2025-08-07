@@ -1,0 +1,8 @@
+
+{
+  "name": "Entity Notes",
+  "hacs": "1.6.0",
+  "domains": ["entity_notes"],
+  "iot_class": "Local Push",
+  "homeassistant": "2023.1.0"
+}
