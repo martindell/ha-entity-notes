@@ -174,13 +174,21 @@ class EntityNotesJSView(HomeAssistantView):
     # Embedded JavaScript content to avoid file I/O operations
     JS_CONTENT = """console.log('Entity Notes: Script loading...');
 
+// Create global namespace for debugging
+window.entityNotes = {
+    version: '1.0.3-debug',
+    debug: true
+};
+
 class EntityNotesCard extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
+        console.log('Entity Notes: EntityNotesCard constructor called');
     }
 
     connectedCallback() {
+        console.log('Entity Notes: EntityNotesCard connected');
         this.render();
         this.setupEventListeners();
     }
@@ -194,6 +202,11 @@ class EntityNotesCard extends HTMLElement {
                     border: 1px solid var(--divider-color, #e0e0e0);
                     border-radius: 8px;
                     background: var(--card-background-color, white);
+                }
+                .entity-notes-title {
+                    font-weight: 500;
+                    margin-bottom: 8px;
+                    color: var(--primary-text-color, black);
                 }
                 .entity-notes-textarea {
                     width: 100%;
@@ -253,16 +266,17 @@ class EntityNotesCard extends HTMLElement {
                 }
             </style>
             <div class="entity-notes-container">
+                <div class="entity-notes-title">Notes</div>
                 <textarea 
                     class="entity-notes-textarea" 
-                    placeholder="Notes"
+                    placeholder="Add notes for this entity..."
                     maxlength="200"
                     rows="1"
                 ></textarea>
                 <div class="entity-notes-char-count">0/200</div>
                 <div class="entity-notes-actions">
-                    <button class="entity-notes-button entity-notes-delete">Delete</button>
-                    <button class="entity-notes-button entity-notes-save">Save</button>
+                    <button class="entity-notes-button entity-notes-delete">DELETE</button>
+                    <button class="entity-notes-button entity-notes-save">SAVE</button>
                 </div>
             </div>
         `;
@@ -279,7 +293,6 @@ class EntityNotesCard extends HTMLElement {
             this.autoResize();
         });
 
-        // Auto-resize on focus to handle any content that was loaded
         textarea.addEventListener('focus', () => {
             this.autoResize();
         });
@@ -302,19 +315,14 @@ class EntityNotesCard extends HTMLElement {
 
     autoResize() {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
-        
-        // Reset height to auto to get the correct scrollHeight
         textarea.style.height = 'auto';
-        
-        // Calculate the new height based on content
         const newHeight = Math.max(40, Math.min(300, textarea.scrollHeight));
-        
-        // Set the new height
         textarea.style.height = newHeight + 'px';
     }
 
     async loadNote() {
         const entityId = this.getAttribute('entity-id');
+        console.log('Entity Notes: Loading note for', entityId);
         if (!entityId) return;
 
         try {
@@ -324,13 +332,8 @@ class EntityNotesCard extends HTMLElement {
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
             textarea.value = data.note || '';
             
-            // Update character count and resize
             this.updateCharCount();
-            
-            // Use setTimeout to ensure the textarea is rendered before resizing
-            setTimeout(() => {
-                this.autoResize();
-            }, 10);
+            setTimeout(() => this.autoResize(), 10);
             
         } catch (error) {
             console.error('Entity Notes: Error loading note:', error);
@@ -342,7 +345,7 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const note = textarea.value.trim();
 
-        if (!entityId) return;
+        console.log('Entity Notes: Saving note for', entityId, ':', note);
 
         try {
             const response = await fetch(`/api/entity_notes/${entityId}`, {
@@ -351,7 +354,9 @@ class EntityNotesCard extends HTMLElement {
                 body: JSON.stringify({ note })
             });
 
-            if (!response.ok) {
+            if (response.ok) {
+                console.log('Entity Notes: Note saved successfully');
+            } else {
                 console.error('Entity Notes: Save failed');
             }
         } catch (error) {
@@ -361,7 +366,7 @@ class EntityNotesCard extends HTMLElement {
 
     async deleteNote() {
         const entityId = this.getAttribute('entity-id');
-        if (!entityId) return;
+        console.log('Entity Notes: Deleting note for', entityId);
 
         try {
             const response = await fetch(`/api/entity_notes/${entityId}`, {
@@ -373,6 +378,7 @@ class EntityNotesCard extends HTMLElement {
                 textarea.value = '';
                 this.updateCharCount();
                 this.autoResize();
+                console.log('Entity Notes: Note deleted successfully');
             }
         } catch (error) {
             console.error('Entity Notes: Error deleting note:', error);
@@ -380,70 +386,180 @@ class EntityNotesCard extends HTMLElement {
     }
 }
 
+// Register both element names for compatibility
 if (!customElements.get('entity-notes-card')) {
     customElements.define('entity-notes-card', EntityNotesCard);
+    console.log('Entity Notes: Custom element entity-notes-card registered');
 }
 
-function getEntityIdFromDialog(dialog) {
-    if (dialog._entityId) {
-        return dialog._entityId;
+if (!customElements.get('entity-notes')) {
+    customElements.define('entity-notes', EntityNotesCard);
+    console.log('Entity Notes: Custom element entity-notes registered');
+}
+
+// Store reference for debugging
+window.entityNotes.EntityNotesCard = EntityNotesCard;
+
+function findEntityId(dialog) {
+    console.log('Entity Notes: Finding entity ID for dialog', dialog);
+    
+    // Try multiple methods to get entity ID
+    const methods = [
+        () => dialog.stateObj?.entity_id,
+        () => dialog._stateObj?.entity_id,
+        () => dialog.entityId,
+        () => dialog._entityId,
+        () => dialog.getAttribute?.('entity-id'),
+        () => dialog.dataset?.entityId,
+        () => {
+            const stateObj = dialog.querySelector?.('[state-obj]')?.stateObj;
+            return stateObj?.entity_id;
+        }
+    ];
+    
+    for (const method of methods) {
+        try {
+            const entityId = method();
+            if (entityId) {
+                console.log('Entity Notes: Found entity ID:', entityId);
+                return entityId;
+            }
+        } catch (e) {
+            // Continue to next method
+        }
     }
     
-    if (dialog._entry?.entity_id) {
-        return dialog._entry.entity_id;
-    }
-    
-    if (dialog.stateObj?.entity_id) {
-        return dialog.stateObj.entity_id;
-    }
-    
+    console.log('Entity Notes: No entity ID found');
     return null;
 }
 
-function injectEntityNotes() {
-    const homeAssistant = document.querySelector('home-assistant');
-    const shadowRoot = homeAssistant?.shadowRoot;
-
-    if (shadowRoot) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === 1 && node.tagName === 'HA-MORE-INFO-DIALOG') {
-                        const delays = [100, 300, 500];
-                        delays.forEach((delay) => {
-                            setTimeout(() => {
-                                const entityId = getEntityIdFromDialog(node);
-                                if (entityId) {
-                                    addNotesCard(node, entityId);
-                                }
-                            }, delay);
-                        });
-                    }
-                });
-            });
-        });
-
-        observer.observe(shadowRoot, { childList: true, subtree: true });
+function injectNotesIntoDialog(dialog) {
+    console.log('Entity Notes: Attempting to inject notes into dialog', dialog);
+    
+    if (!dialog || !dialog.shadowRoot) {
+        console.log('Entity Notes: No dialog or shadowRoot found');
+        return;
     }
+    
+    // Check if already injected
+    if (dialog.shadowRoot.querySelector('entity-notes-card')) {
+        console.log('Entity Notes: Notes already injected');
+        return;
+    }
+    
+    const entityId = findEntityId(dialog);
+    if (!entityId) {
+        console.log('Entity Notes: No entity ID found for dialog');
+        return;
+    }
+    
+    // Try multiple selectors to find content area
+    const selectors = [
+        '.content',
+        '.mdc-dialog__content',
+        '[slot="content"]',
+        '.dialog-content',
+        'ha-dialog-content'
+    ];
+    
+    let contentArea = null;
+    for (const selector of selectors) {
+        contentArea = dialog.shadowRoot.querySelector(selector);
+        if (contentArea) {
+            console.log('Entity Notes: Found content area with selector:', selector);
+            break;
+        }
+    }
+    
+    if (!contentArea) {
+        console.log('Entity Notes: No content area found');
+        return;
+    }
+    
+    // Create and inject notes card
+    const notesCard = document.createElement('entity-notes-card');
+    notesCard.setAttribute('entity-id', entityId);
+    contentArea.appendChild(notesCard);
+    
+    console.log('Entity Notes: Notes card injected for entity:', entityId);
+    
+    // Load the note after a short delay
+    setTimeout(() => {
+        notesCard.loadNote();
+    }, 100);
 }
 
-function addNotesCard(dialog, entityId) {
-    const content = dialog.shadowRoot?.querySelector('.content');
-    if (content && !content.querySelector('entity-notes-card') && entityId) {
-        const notesCard = document.createElement('entity-notes-card');
-        notesCard.setAttribute('entity-id', entityId);
-        content.appendChild(notesCard);
-        
-        setTimeout(() => {
-            notesCard.loadNote();
-        }, 100);
+function setupDialogObserver() {
+    console.log('Entity Notes: Setting up dialog observer');
+    
+    // Observer for the main document
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === 1) {
+                    // Check if this is a more-info dialog
+                    if (node.tagName === 'HA-MORE-INFO-DIALOG' || 
+                        node.classList?.contains('more-info-dialog') ||
+                        node.querySelector?.('ha-more-info-dialog')) {
+                        
+                        console.log('Entity Notes: More-info dialog detected:', node);
+                        
+                        // Try injection with multiple delays
+                        [50, 200, 500, 1000].forEach(delay => {
+                            setTimeout(() => injectNotesIntoDialog(node), delay);
+                        });
+                    }
+                    
+                    // Also check child nodes
+                    const dialogs = node.querySelectorAll?.('ha-more-info-dialog, [class*="more-info"]');
+                    dialogs?.forEach(dialog => {
+                        console.log('Entity Notes: Found nested dialog:', dialog);
+                        [50, 200, 500].forEach(delay => {
+                            setTimeout(() => injectNotesIntoDialog(dialog), delay);
+                        });
+                    });
+                }
+            });
+        });
+    });
+    
+    // Observe the entire document
+    observer.observe(document.body, { 
+        childList: true, 
+        subtree: true 
+    });
+    
+    // Also observe home-assistant shadow root if available
+    const homeAssistant = document.querySelector('home-assistant');
+    if (homeAssistant?.shadowRoot) {
+        console.log('Entity Notes: Observing home-assistant shadow root');
+        observer.observe(homeAssistant.shadowRoot, { 
+            childList: true, 
+            subtree: true 
+        });
     }
+    
+    window.entityNotes.observer = observer;
+}
+
+// Initialize when DOM is ready
+function initialize() {
+    console.log('Entity Notes: Initializing...');
+    setupDialogObserver();
+    
+    // Try to inject into any existing dialogs
+    const existingDialogs = document.querySelectorAll('ha-more-info-dialog, [class*="more-info"]');
+    existingDialogs.forEach(dialog => {
+        setTimeout(() => injectNotesIntoDialog(dialog), 100);
+    });
+    
+    console.log('Entity Notes: Initialization complete');
 }
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectEntityNotes);
+    document.addEventListener('DOMContentLoaded', initialize);
 } else {
-    injectEntityNotes();
+    initialize();
 }
 
 console.log('Entity Notes: Script loaded successfully');"""
