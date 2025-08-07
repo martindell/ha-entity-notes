@@ -1,10 +1,17 @@
 # Entity Notes for Home Assistant
 
-A Home Assistant integration that allows you to add custom notes to any entity using the "more info" dialog. 
-Perfect for documenting device locations, maintenance schedules, configuration details, or any other information you want to keep with your entities.
+A Home Assistant integration that allows you to add custom notes to any entity using the
+“more info” dialog. Perfect for documenting device locations, maintenance schedules,
+configuration details, or any other information you want to keep with your entities.
+
 
 ## Features
-
+<img
+  src="icon.png"
+  alt="Entity Notes in action"
+  width="125"
+  align="right"
+/>
 - 🗒️ **Add notes to any entity** - Works with all Home Assistant entities (lights, sensors, switches, etc.)
 - 💾 **Persistent storage** - Notes are saved permanently and survive restarts
 - 🎨 **Auto-resizing textarea** - Input field automatically adjusts to content size
