@@ -1,4 +1,3 @@
-
 # Entity Notes for Home Assistant
 
 A Home Assistant integration that allows you to add custom notes to any entity through the "more info" dialog. Perfect for documenting device locations, maintenance schedules, configuration details, or any other information you want to associate with your entities.
@@ -55,27 +54,15 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ### Frontend Resource
 
-The integration automatically registers its frontend JavaScript file when loaded. No manual configuration is required in `configuration.yaml`.
-
-**Note**: If you previously added the frontend resource manually to your `configuration.yaml`, you can remove this entry:
-
-```yaml
-# This is no longer needed - remove if present
-frontend:
-  extra_module_url:
-    - /local/entity-notes.js
-```
-
-The integration will handle frontend resource loading automatically.
+The integration automatically registers its frontend JavaScript file when loaded
 
 ## Usage
 
 1. Click on any entity to open its "more info" dialog
 2. Scroll down to find the "Notes" section
 3. Click in the text area to add or edit notes
-4. Notes auto-save as you type
-5. Use the "Save" button to manually save
-6. Use the "Delete" button to remove notes entirely
+4. Use the "Save" button to save
+5. Use the "Delete" button to remove notes entirely
 
 ### Tips
 
@@ -90,8 +77,8 @@ The integration will handle frontend resource loading automatically.
 ha-entity-notes/
 ├── custom_components/
 │   └── entity_notes/
-│       ├── __init__.py          # Main integration logic and API endpoints
-│       ├── manifest.json        # Integration manifest
+│       ├── __init__.py         # Main integration logic and API endpoints
+│       ├── manifest.json       # Integration manifest
 │       ├── const.py            # Constants and configuration
 │       └── services.yaml       # Service definitions
 ├── www/
@@ -126,7 +113,7 @@ Notes are stored in Home Assistant's internal storage system at `.storage/entity
 
 ### Notes not appearing
 - Ensure the frontend resource is properly configured in `configuration.yaml`
-- Check that the `entity-notes.js` file is in your `www` directory
+- Check that the `entity-notes.js` file is registered as a resource at /config/lovelace/resources
 - Restart Home Assistant after configuration changes
 
 ### Notes not saving
@@ -136,7 +123,7 @@ Notes are stored in Home Assistant's internal storage system at `.storage/entity
 
 ### Browser console errors
 - Open browser developer tools and check for JavaScript errors
-- Ensure the script is loading properly from `/local/entity-notes.js`
+- Ensure the script is loading properly: `entity-notes.js`
 
 ## Contributing
 
