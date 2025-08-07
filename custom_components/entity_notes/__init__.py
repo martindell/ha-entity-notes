@@ -176,7 +176,7 @@ class EntityNotesJSView(HomeAssistantView):
 
 // Create global namespace for debugging
 window.entityNotes = {
-    version: '1.0.5-init-fix',
+    version: '1.0.6-critical-fix',
     debug: true
 };
 
@@ -392,9 +392,16 @@ if (!customElements.get('entity-notes-card')) {
     console.log('Entity Notes: Custom element entity-notes-card registered');
 }
 
+// Wrap second registration in try-catch to prevent script execution from stopping
 if (!customElements.get('entity-notes')) {
-    customElements.define('entity-notes', EntityNotesCard);
-    console.log('Entity Notes: Custom element entity-notes registered');
+    try {
+        customElements.define('entity-notes', EntityNotesCard);
+        console.log('Entity Notes: Custom element entity-notes registered');
+    } catch (error) {
+        console.log('Entity Notes: Second element registration failed (this is OK):', error.message);
+        // This is expected - browsers don't allow the same constructor for multiple element names
+        // The first registration (entity-notes-card) is sufficient for functionality
+    }
 }
 
 // Store reference for debugging
