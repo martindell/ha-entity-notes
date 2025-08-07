@@ -1,10 +1,6 @@
 
 # Entity Notes for Home Assistant
 
-[![hacs_badge](https://imgs.search.brave.com/a50DQgPTlWxzI2cGSgN1Pn2W0r19V94i_LgF89jgpws/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9wZWF0/ZWFzZWEuZGUvYXNz/ZXRzL2ltYWdlcy9i/YWRnZS1nZW5lcmF0/b3ItbWFzdG9kb24t/YmxhY2std2l0aC1t/YXN0b2Rvbi1sb2dv/LW91dHB1dC5wbmc)
-[![GitHub release](https://imgs.search.brave.com/9cPbqClqJLoEwVCZXmWRJGIwWNXr2Qmgudfwjc2KQj0/rs:fit:0:180:1:0/g:ce/aHR0cHM6Ly9kb2Nz/LmdpdGh1Yi5jb20v/YXNzZXRzL2NiLTEy/OTU4L2ltYWdlcy9o/ZWxwL3JlcG9zaXRv/cnkvYWN0aW9ucy10/YWItZ2xvYmFsLW5h/di11cGRhdGUucG5n)
-[![License](https://img.shields.io/github/license/yourusername/ha-entity-notes.svg)](LICENSE)
-
 A Home Assistant integration that allows you to add custom notes to any entity through the "more info" dialog. Perfect for documenting device locations, maintenance schedules, configuration details, or any other information you want to associate with your entities.
 
 ## Features
