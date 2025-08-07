@@ -21,6 +21,10 @@ A Home Assistant integration that allows you to add custom notes to any entity t
 
 The Entity Notes integration adds a notes section to every entity's "more info" dialog, allowing you to quickly add, edit, or delete notes associated with that entity.
 
+![Entity Notes in action](screenshot.png)
+
+*Example showing the Entity Notes feature in an entity's more info dialog with a note displayed below the history chart.*
+
 ## Installation
 
 ### HACS (Recommended)
