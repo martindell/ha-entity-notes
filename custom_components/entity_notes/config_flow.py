@@ -7,15 +7,20 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    CONF_DEBUG_LOGGING,
+    CONF_MAX_NOTE_LENGTH,
+    CONF_AUTO_BACKUP,
+    DEFAULT_DEBUG_LOGGING,
+    DEFAULT_MAX_NOTE_LENGTH,
+    DEFAULT_AUTO_BACKUP,
+)
 
 _LOGGER = logging.getLogger(__name__)
-
-# Module-level debug log to see if this file is being loaded
-_LOGGER.warning("🔧 DEBUG: config_flow.py module loaded for domain: %s", DOMAIN)
 
 
 class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -23,82 +28,103 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    def __init__(self):
-        """Initialize the config flow."""
-        _LOGGER.warning("🔧 DEBUG: EntityNotesConfigFlow.__init__ called")
-        super().__init__()
-
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        _LOGGER.warning("🔧 DEBUG: async_step_user called with user_input: %s", user_input)
+        errors = {}
         
-        # Check if already configured first
+        # Check if already configured
         existing_entries = self._async_current_entries()
-        _LOGGER.warning("🔧 DEBUG: Found %d existing entries: %s", len(existing_entries), [e.title for e in existing_entries])
-        
         if existing_entries:
-            _LOGGER.warning("🔧 DEBUG: Integration already configured, aborting")
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
-            _LOGGER.warning("🔧 DEBUG: User input received, creating config entry")
-            # Set unique ID but don't abort if already configured
-            # This allows for proper cleanup and reinstallation
-            await self.async_set_unique_id(DOMAIN)
-            _LOGGER.warning("🔧 DEBUG: Unique ID set to: %s", DOMAIN)
+            # Validate input
+            max_length = user_input.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+            if max_length < 50 or max_length > 2000:
+                errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
             
-            try:
-                result = self.async_create_entry(
+            if not errors:
+                await self.async_set_unique_id(DOMAIN)
+                return self.async_create_entry(
                     title="Entity Notes",
                     data={},
+                    options={
+                        CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                        CONF_MAX_NOTE_LENGTH: max_length,
+                        CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
+                    },
                 )
-                _LOGGER.warning("🔧 DEBUG: Config entry created successfully: %s", result)
-                return result
-            except Exception as e:
-                _LOGGER.error("🔧 DEBUG: Failed to create config entry: %s", e)
-                import traceback
-                _LOGGER.error("🔧 DEBUG: Full traceback: %s", traceback.format_exc())
-                raise
 
-        _LOGGER.warning("🔧 DEBUG: Showing config form")
+        # Show configuration form
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema({
+                vol.Optional(CONF_DEBUG_LOGGING, default=DEFAULT_DEBUG_LOGGING): bool,
+                vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
+                vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
+            }),
+            errors=errors,
             description_placeholders={
-                "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Notes will appear in the entity's more-info dialog."
+                "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Configure your preferences below."
             },
         )
 
     async def async_step_import(self, import_info: dict[str, Any]) -> FlowResult:
         """Handle import from configuration.yaml."""
-        _LOGGER.warning("🔧 DEBUG: async_step_import called with import_info: %s", import_info)
-        result = await self.async_step_user(import_info)
-        _LOGGER.warning("🔧 DEBUG: async_step_import result: %s", result)
-        return result
-
+        return await self.async_step_user(import_info)
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle reconfiguration of the integration."""
+        entry = self._get_reconfigure_entry()
+        errors = {}
+        
         if user_input is not None:
-            return self.async_update_reload_and_abort(
-                self._get_reconfigure_entry(),
-                data={},
-                reason="reconfigure_successful",
-            )
+            # Validate input
+            max_length = user_input.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+            if max_length < 50 or max_length > 2000:
+                errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
+            
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data={},
+                    options={
+                        CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                        CONF_MAX_NOTE_LENGTH: max_length,
+                        CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
+                    },
+                    reason="reconfigure_successful",
+                )
 
+        current_options = entry.options or {}
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_DEBUG_LOGGING,
+                    default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
+                ): bool,
+                vol.Optional(
+                    CONF_MAX_NOTE_LENGTH,
+                    default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+                ): vol.All(int, vol.Range(min=50, max=2000)),
+                vol.Optional(
+                    CONF_AUTO_BACKUP,
+                    default=current_options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
+                ): bool,
+            }),
+            errors=errors,
             description_placeholders={
-                "description": "Reconfigure Entity Notes integration."
+                "description": "Update your Entity Notes configuration settings."
             },
         )
 
     @staticmethod
+    @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
     ) -> EntityNotesOptionsFlow:
@@ -117,14 +143,43 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options."""
+        errors = {}
+        
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Validate input
+            max_length = user_input.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+            if max_length < 50 or max_length > 2000:
+                errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
+            
+            if not errors:
+                return self.async_create_entry(
+                    title="",
+                    data={
+                        CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                        CONF_MAX_NOTE_LENGTH: max_length,
+                        CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
+                    }
+                )
 
+        current_options = self.config_entry.options or {}
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_DEBUG_LOGGING,
+                    default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
+                ): bool,
+                vol.Optional(
+                    CONF_MAX_NOTE_LENGTH,
+                    default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+                ): vol.All(int, vol.Range(min=50, max=2000)),
+                vol.Optional(
+                    CONF_AUTO_BACKUP,
+                    default=current_options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
+                ): bool,
+            }),
+            errors=errors,
             description_placeholders={
-                "description": "Configure Entity Notes options."
+                "description": "Configure Entity Notes behavior and settings."
             },
         )
-
