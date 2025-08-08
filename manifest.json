@@ -1,0 +1,14 @@
+
+{
+  "domain": "entity_notes",
+  "name": "Entity Notes",
+  "codeowners": ["@raman325"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/raman325/entity-notes",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/raman325/entity-notes/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}
