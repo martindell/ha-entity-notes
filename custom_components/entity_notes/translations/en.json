@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Entity Notes Setup",
+        "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Configure your preferences below.",
+        "data": {
+          "debug_logging": "Enable debug logging",
+          "max_note_length": "Maximum note length (50-2000 characters)",
+          "auto_backup": "Enable automatic backups"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Entity Notes",
+        "description": "Update your Entity Notes configuration settings.",
+        "data": {
+          "debug_logging": "Enable debug logging",
+          "max_note_length": "Maximum note length (50-2000 characters)",
+          "auto_backup": "Enable automatic backups"
+        }
+      }
+    },
+    "error": {
+      "invalid_max_length": "Maximum note length must be between 50 and 2000 characters",
+      "upgrade_failed": "Failed to upgrade existing installation. Please try again or remove the existing integration first."
+    },
+    "abort": {
+      "already_configured": "Entity Notes is already configured",
+      "reconfigure_successful": "Entity Notes reconfigured successfully"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Entity Notes Options",
+        "description": "Configure Entity Notes behavior and settings.",
+        "data": {
+          "debug_logging": "Enable debug logging",
+          "max_note_length": "Maximum note length (50-2000 characters)",
+          "auto_backup": "Enable automatic backups"
+        }
+      }
+    },
+    "error": {
+      "invalid_max_length": "Maximum note length must be between 50 and 2000 characters"
+    }
+  }
+}
