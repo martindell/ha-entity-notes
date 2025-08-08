@@ -5,10 +5,9 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/martindell/ha-entity-notes",
-  "icon": "icon.png",
-  "integration_type": "integration",
+  "integration_type": "helper",
   "iot_class": "local_push",
   "requirements": [],
-  "version": "1.2.0"
+  "version": "1.3.0",
+  "icon": "mdi:note-text"
 }
-

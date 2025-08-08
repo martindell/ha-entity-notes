@@ -1,25 +1,23 @@
-
 set_note:
   name: Set Note
-  description: Set a note for an entity (max 200 characters)
+  description: Set a note for an entity
   fields:
     entity_id:
       name: Entity ID
-      description: The entity to add a note to
+      description: The entity to set a note for
       required: true
       selector:
-        entity: {}
+        entity:
     note:
       name: Note
-      description: The note text (max 200 characters)
+      description: The note content
       required: true
       selector:
         text:
           multiline: true
-          max: 200
 
 get_note:
-  name: Get Note
+  name: Get Note  
   description: Get the note for an entity
   fields:
     entity_id:
@@ -27,7 +25,7 @@ get_note:
       description: The entity to get the note for
       required: true
       selector:
-        entity: {}
+        entity:
 
 delete_note:
   name: Delete Note
@@ -38,8 +36,16 @@ delete_note:
       description: The entity to delete the note for
       required: true
       selector:
-        entity: {}
+        entity:
 
 list_notes:
   name: List Notes
-  description: List all entity notes
+  description: List all stored notes
+
+backup_notes:
+  name: Backup Notes
+  description: Backup all notes to a JSON file
+
+restore_notes:
+  name: Restore Notes
+  description: Restore notes from a backup JSON file
