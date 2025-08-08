@@ -1,0 +1,66 @@
+
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Entity Notes",
+        "description": "Set up Entity Notes integration to add notes to your entities",
+        "data": {
+          "notes_file": "Notes file name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Entity Notes is already configured"
+    }
+  },
+  "services": {
+    "add_note": {
+      "name": "Add Note",
+      "description": "Add a note to an entity",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "The entity to add a note to"
+        },
+        "note": {
+          "name": "Note",
+          "description": "The note content"
+        },
+        "title": {
+          "name": "Title",
+          "description": "Optional title for the note"
+        }
+      }
+    },
+    "remove_note": {
+      "name": "Remove Note",
+      "description": "Remove a note from an entity",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "The entity to remove a note from"
+        },
+        "note_id": {
+          "name": "Note ID",
+          "description": "The ID of the specific note to remove"
+        }
+      }
+    },
+    "get_notes": {
+      "name": "Get Notes",
+      "description": "Get all notes for an entity",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "The entity to get notes for"
+        }
+      }
+    }
+  }
+}

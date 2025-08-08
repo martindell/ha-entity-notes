@@ -1,0 +1,52 @@
+
+add_note:
+  name: Add Note
+  description: Add a note to an entity
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity to add a note to
+      required: true
+      selector:
+        entity:
+    note:
+      name: Note
+      description: The note content
+      required: true
+      selector:
+        text:
+          multiline: true
+    title:
+      name: Title
+      description: Optional title for the note
+      required: false
+      selector:
+        text:
+
+remove_note:
+  name: Remove Note
+  description: Remove a note from an entity
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity to remove a note from
+      required: true
+      selector:
+        entity:
+    note_id:
+      name: Note ID
+      description: The ID of the specific note to remove (optional - removes all if not specified)
+      required: false
+      selector:
+        text:
+
+get_notes:
+  name: Get Notes
+  description: Get all notes for an entity
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity to get notes for
+      required: true
+      selector:
+        entity:
