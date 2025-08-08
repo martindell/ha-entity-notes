@@ -118,7 +118,7 @@ Notes are stored in Home Assistant's internal storage system at `.storage/entity
 ## Troubleshooting
 
 ### Notes not appearing
-- Clear browser cache and / or force refresh
+- Clear browser cache and / or force refresh.  On mobile, clear the app cache
 - Restart Home Assistant after configuration changes
 
 ### Notes not saving
