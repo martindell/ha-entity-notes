@@ -18,7 +18,7 @@ configuration details, or any other information you want to keep with your entit
 - 📱 **Responsive design** - Works on desktop and mobile
 - 🔒 **Local storage** - All data stays on your Home Assistant instance
 - ⚡ **Real-time updates** - Changes are saved instantly
-- 🎯 **Character limit** - 200 character limit with visual feedback
+- 🎯 **Character limit** - Configurable 200 character limit with visual feedback
 
 ## Screenshot
 
@@ -72,7 +72,7 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ### Tips
 
-- Notes are limited to 200 characters for optimal performance
+- Notes are limited to 200 characters (can be changed in integration settings)
 - The text area automatically resizes based on content
 - Empty notes are automatically removed to keep storage clean
 - All notes are stored locally on your Home Assistant instance
@@ -145,8 +145,3 @@ If you encounter any issues or have questions:
 1. Check the [troubleshooting section](#troubleshooting)
 2. Search existing [issues](https://github.com/martindell/ha-entity-notes/issues)
 3. Create a new issue with detailed information about your problem
-
-## Changelog
-
-### v1.0.0
-- Initial release
