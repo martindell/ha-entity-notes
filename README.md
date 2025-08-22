@@ -145,4 +145,3 @@ If you encounter any issues or have questions:
 1. Check the [troubleshooting section](#troubleshooting)
 2. Search existing [issues](https://github.com/martindell/ha-entity-notes/issues)
 3. Create a new issue with detailed information about your problem
-
