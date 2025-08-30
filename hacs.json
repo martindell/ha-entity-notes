@@ -1,8 +1,6 @@
 {
   "name": "Entity Notes",
-  "content_in_root": false,
   "render_readme": true,
-  "domains": ["entity_notes"],
-  "country": "ALL",
+  "content_in_root": false,
   "homeassistant": "2024.12.0"
 }
