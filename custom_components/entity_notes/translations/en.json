@@ -2,50 +2,41 @@
   "config": {
     "step": {
       "user": {
-        "title": "Entity Notes Setup",
-        "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Configure your preferences below.",
+        "title": "Entity Notes Configuration",
+        "description": "Configure Entity Notes integration settings.",
         "data": {
           "debug_logging": "Enable debug logging",
+          "auto_backup": "Enable automatic backups",
           "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "max_note_length": "Maximum note length (50-2000 characters)",
-          "auto_backup": "Enable automatic backups"
-        }
-      },
-      "reconfigure": {
-        "title": "Reconfigure Entity Notes",
-        "description": "Update your Entity Notes configuration settings.",
-        "data": {
-          "debug_logging": "Enable debug logging",
-          "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "max_note_length": "Maximum note length (50-2000 characters)",
-          "auto_backup": "Enable automatic backups"
+          "max_note_length": "Maximum note length (50-2000 characters)"
         }
       }
     },
     "error": {
+      "cannot_connect": "Failed to connect",
       "invalid_max_length": "Maximum note length must be between 50 and 2000 characters",
-      "upgrade_failed": "Failed to upgrade existing installation. Please try again or remove the existing integration first."
+      "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "Entity Notes is already configured",
-      "reconfigure_successful": "Entity Notes reconfigured successfully"
+      "already_configured": "Entity Notes is already configured"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Entity Notes Options",
-        "description": "Configure Entity Notes behavior and settings.",
+        "description": "Update Entity Notes integration settings.",
         "data": {
           "debug_logging": "Enable debug logging",
+          "auto_backup": "Enable automatic backups",
           "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "max_note_length": "Maximum note length (50-2000 characters)",
-          "auto_backup": "Enable automatic backups"
+          "max_note_length": "Maximum note length (50-2000 characters)"
         }
       }
     },
     "error": {
-      "invalid_max_length": "Maximum note length must be between 50 and 2000 characters"
+      "invalid_max_length": "Maximum note length must be between 50 and 2000 characters",
+      "unknown": "Unexpected error"
     }
   }
 }
