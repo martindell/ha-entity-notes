@@ -343,3 +343,4 @@ class EntityNotesJSView(HomeAssistantView):
         except Exception as e:
             _LOGGER.error("Error serving JavaScript file: %s", e)
             return web.Response(text="// Entity Notes: Error loading script", content_type="application/javascript", status=500)
+
