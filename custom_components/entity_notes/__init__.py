@@ -1,3 +1,4 @@
+
 """Entity Notes integration for Home Assistant."""
 import logging
 import voluptuous as vol
@@ -12,7 +13,6 @@ from aiohttp import web
 import json
 import os
 from pathlib import Path
-from functools import partial  # <-- PATCH: added
 
 from .const import (
     DOMAIN,
@@ -352,12 +352,9 @@ class EntityNotesJSView(HomeAssistantView):
         js_file_path = Path(__file__).parent / FRONTEND_JS_PATH
         
         try:
-            # --- PATCH: async-safe file read to avoid blocking open() ---
-            js_content = await hass.async_add_executor_job(
-                partial(Path(js_file_path).read_text, encoding="utf-8")
-            )
-            # -------------------------------------------------------------
-
+            with open(js_file_path, 'r') as f:
+                js_content = f.read()
+                
             # Replace configuration placeholders
             js_content = js_content.replace('{{DEBUG_LOGGING}}', str(debug_logging).lower())
             js_content = js_content.replace('{{MAX_NOTE_LENGTH}}', str(max_note_length))
