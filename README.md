@@ -1,5 +1,11 @@
 # Entity Notes for Home Assistant
 
+[![HACS Default](https://img.shields.io/badge/HACS-Default-blue.svg)](https://github.com/hacs/default)
+[![Latest release](https://img.shields.io/github/v/release/martindell/ha-entity-notes?display_name=tag&sort=semver)](https://github.com/martindell/ha-entity-notes/releases)
+[![Downloads](https://img.shields.io/github/downloads/martindell/ha-entity-notes/total)](https://github.com/martindell/ha-entity-notes/releases)
+[![Issues](https://img.shields.io/github/issues/martindell/ha-entity-notes)](https://github.com/martindell/ha-entity-notes/issues)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A Home Assistant integration that allows you to add custom notes to any entity using the
 “more info” dialog. Perfect for documenting device locations, maintenance schedules,
 configuration details, or any other information you want to keep with your entities.
