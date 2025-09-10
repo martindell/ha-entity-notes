@@ -32,17 +32,11 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
 
 ## Installation
 
-### HACS (Recommended)
-
-1. Open HACS in your Home Assistant instance
-2. Go to "Integrations"
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add `https://github.com/martindell/ha-entity-notes` as repository
-6. Select "Integration" as category
-7. Click "Add"
-8. Search for "Entity Notes" and install
-9. Restart Home Assistant
+## Installation (HACS)
+1. In Home Assistant, open **HACS → Integrations**  
+2. Search for **Entity Notes**  
+3. Install the integration  
+4. **Restart Home Assistant**
 
 ### Manual Installation
 
