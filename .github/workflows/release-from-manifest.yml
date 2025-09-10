@@ -1,0 +1,53 @@
+name: Release from manifest
+
+on:
+  push:
+    paths:
+      - custom_components/entity_notes/manifest.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from manifest.json
+        id: manifest
+        run: |
+          VERSION=$(jq -r '.version' custom_components/entity_notes/manifest.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Tag will be: v$VERSION"
+
+      - name: Ensure tag doesn’t already exist
+        id: tagcheck
+        run: |
+          git fetch --tags --quiet
+          TAG="v${{ steps.manifest.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release (auto-generate notes)
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.manifest.outputs.version }}
+          name: Entity Notes v${{ steps.manifest.outputs.version }}
+          generate_release_notes: true
+
+      - name: Done / Skipped
+        run: |
+          if [ "${{ steps.tagcheck.outputs.exists }}" = "true" ]; then
+            echo "Tag already exists. Skipping release."
+          else
+            echo "Release created from manifest.json version."
+          fi
