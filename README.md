@@ -58,6 +58,8 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
    - **Enable automatic backups**: Notes are automatically included in Home Assistant backups
    - **Maximum note length**: Set character limit (50-2000 characters)
 
+When you change any of these options, please reload the integration.  HA only registes these settings on integration load / reload.  You'll likely also need to clear browser cache to see the changes take effect too.  So much caching!
+
 ### Configuration Options
 
 | Option | Description | Default | Range |
@@ -342,9 +344,9 @@ Get all notes (fires an event with the result).
 
 ### Configuration changes not taking effect
 
-- Configuration changes should apply immediately
-- If issues persist, restart Home Assistant
+- Reload the integration to foce configuration changes
 - Clear browser cache after configuration changes
+- If issues persist, restart Home Assistant
 
 ### Browser console errors
 
