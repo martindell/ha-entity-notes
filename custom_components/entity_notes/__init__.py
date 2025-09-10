@@ -22,9 +22,11 @@ from .const import (
     CONF_DEBUG_LOGGING,
     CONF_MAX_NOTE_LENGTH,
     CONF_AUTO_BACKUP,
+    CONF_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
+    DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
     FRONTEND_JS_PATH,
     EVENT_NOTES_UPDATED,
     SERVICE_SET_NOTE,
@@ -42,8 +44,6 @@ CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Entity Notes integration from configuration.yaml."""
-    # This is for backward compatibility with configuration.yaml
-    # The main setup now happens in async_setup_entry
     return True
 
 
@@ -51,22 +51,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Entity Notes from a config entry."""
     _LOGGER.info("Setting up Entity Notes integration")
     
-    # Get configuration options
     options = entry.options or {}
     debug_logging = options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
     max_note_length = options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
     auto_backup = options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
+    hide_buttons_when_empty = options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
     
     if debug_logging:
         _LOGGER.setLevel(logging.DEBUG)
         _LOGGER.debug("Debug logging enabled for Entity Notes")
     
     try:
-        # Initialize storage
-        _LOGGER.debug("Initializing storage")
         store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
-
-        # Load existing notes
         try:
             stored_data = await store.async_load()
             notes_data = stored_data or {}
@@ -75,10 +71,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Could not load notes storage, starting fresh: %s", e)
             notes_data = {}
 
-        # Generate cache buster for JavaScript file
-        cache_buster = int(time.time())
+        # Create cache buster that includes configuration hash
+        import hashlib
+        config_str = f"{debug_logging}_{max_note_length}_{auto_backup}_{hide_buttons_when_empty}"
+        config_hash = hashlib.md5(config_str.encode()).hexdigest()[:8]
+        cache_buster = f"{int(time.time())}_{config_hash}"
 
-        # Store the configuration and data in hass.data
         hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN] = {
             "store": store,
@@ -87,20 +85,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_DEBUG_LOGGING: debug_logging,
                 CONF_MAX_NOTE_LENGTH: max_note_length,
                 CONF_AUTO_BACKUP: auto_backup,
+                CONF_HIDE_BUTTONS_WHEN_EMPTY: hide_buttons_when_empty,
             },
             "entry_id": entry.entry_id,
             "cache_buster": cache_buster,
         }
 
-        # Register the API view
         hass.http.register_view(EntityNotesView())
         _LOGGER.debug("EntityNotesView registered")
         
-        # Register the JavaScript file serving view
         hass.http.register_view(EntityNotesJSView())
         _LOGGER.debug("EntityNotesJSView registered")
 
-        # Register frontend resource with cache busting
         try:
             js_url_with_cache_buster = f"/api/entity_notes/entity-notes.js?v={cache_buster}"
             add_extra_js_url(hass, js_url_with_cache_buster)
@@ -108,7 +104,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as e:
             _LOGGER.error("Failed to register frontend resource: %s", e)
 
-        # Register services
         await async_register_services(hass)
 
         _LOGGER.info("Entity Notes integration setup completed successfully")
@@ -124,7 +119,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Unloading Entity Notes integration")
     
     try:
-        # Remove services
         services_to_remove = [
             SERVICE_SET_NOTE,
             SERVICE_GET_NOTE,
@@ -138,7 +132,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)
         
-        # Clean up data
         hass.data.pop(DOMAIN, None)
         
         _LOGGER.info("Entity Notes integration unloaded successfully")
@@ -153,7 +146,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
     """Register the Entity Notes services."""
     
     async def set_note_service(call):
-        """Set a note for an entity."""
         entity_id = call.data.get("entity_id")
         note = call.data.get("note", "")
         
@@ -165,7 +157,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
         notes_data = hass.data[DOMAIN]["notes"]
         max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
         
-        # Truncate note if too long
         if len(note) > max_length:
             note = note[:max_length]
             _LOGGER.warning("Note truncated to %d characters for %s", max_length, entity_id)
@@ -181,7 +172,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
         hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": note})
 
     async def get_note_service(call):
-        """Get a note for an entity."""
         entity_id = call.data.get("entity_id")
         if not entity_id:
             return
@@ -195,7 +185,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
         })
 
     async def delete_note_service(call):
-        """Delete a note for an entity."""
         entity_id = call.data.get("entity_id")
         if not entity_id:
             return
@@ -210,12 +199,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.info("Deleted note for %s", entity_id)
 
     async def list_notes_service(call):
-        """List all notes."""
         notes_data = hass.data[DOMAIN]["notes"]
         hass.bus.async_fire("entity_notes_list_response", {"notes": dict(notes_data)})
 
     async def backup_notes_service(call):
-        """Backup all notes to a file."""
         notes_data = hass.data[DOMAIN]["notes"]
         backup_path = hass.config.path("entity_notes_backup.json")
         
@@ -227,7 +214,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Failed to backup notes: %s", e)
 
     async def restore_notes_service(call):
-        """Restore notes from a backup file."""
         backup_path = hass.config.path("entity_notes_backup.json")
         
         try:
@@ -241,7 +227,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
         except Exception as e:
             _LOGGER.error("Failed to restore notes: %s", e)
 
-    # Register services
     hass.services.async_register(DOMAIN, SERVICE_SET_NOTE, set_note_service)
     hass.services.async_register(DOMAIN, SERVICE_GET_NOTE, get_note_service)
     hass.services.async_register(DOMAIN, SERVICE_DELETE_NOTE, delete_note_service)
@@ -255,10 +240,9 @@ class EntityNotesView(HomeAssistantView):
 
     url = "/api/entity_notes/{entity_id}"
     name = "api:entity_notes"
-    requires_auth = False  # Local requests only
+    requires_auth = False
 
     async def get(self, request, entity_id):
-        """Get note for an entity."""
         hass = request.app["hass"]
         notes_data = hass.data[DOMAIN]["notes"]
         note = notes_data.get(entity_id, "")
@@ -270,7 +254,6 @@ class EntityNotesView(HomeAssistantView):
         return web.json_response({"note": note})
 
     async def post(self, request, entity_id):
-        """Save note for an entity."""
         hass = request.app["hass"]
         store = hass.data[DOMAIN]["store"]
         notes_data = hass.data[DOMAIN]["notes"]
@@ -281,7 +264,6 @@ class EntityNotesView(HomeAssistantView):
             data = await request.json()
             note = data.get("note", "").strip()
 
-            # Enforce max length
             if len(note) > max_length:
                 note = note[:max_length]
 
@@ -290,15 +272,11 @@ class EntityNotesView(HomeAssistantView):
                 if debug_logging:
                     _LOGGER.debug("Saved note for %s: %s", entity_id, note[:50] + "..." if len(note) > 50 else note)
             else:
-                # Remove empty notes
                 notes_data.pop(entity_id, None)
                 if debug_logging:
                     _LOGGER.debug("Removed empty note for %s", entity_id)
 
-            # Save to persistent storage
             await store.async_save(notes_data)
-            
-            # Fire event
             hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": note})
 
             return web.json_response({"status": "success"})
@@ -308,7 +286,6 @@ class EntityNotesView(HomeAssistantView):
             return web.json_response({"error": str(e)}, status=500)
 
     async def delete(self, request, entity_id):
-        """Delete note for an entity."""
         hass = request.app["hass"]
         store = hass.data[DOMAIN]["store"]
         notes_data = hass.data[DOMAIN]["notes"]
@@ -320,10 +297,7 @@ class EntityNotesView(HomeAssistantView):
                 if debug_logging:
                     _LOGGER.debug("Deleted note for %s", entity_id)
 
-                # Save to persistent storage
                 await store.async_save(notes_data)
-                
-                # Fire event
                 hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": ""})
 
                 return web.json_response({"status": "deleted"})
@@ -345,27 +319,27 @@ class EntityNotesJSView(HomeAssistantView):
     async def get(self, request):
         """Serve the JavaScript file."""
         hass = request.app["hass"]
-        debug_logging = hass.data[DOMAIN]["config"].get(CONF_DEBUG_LOGGING, False)
-        max_note_length = hass.data[DOMAIN]["config"].get(CONF_MAX_NOTE_LENGTH, 200)
+        config = hass.data[DOMAIN]["config"]
+        debug_logging = config.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
+        max_note_length = config.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+        hide_buttons = config.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
         
-        # Get the JavaScript file path
         js_file_path = Path(__file__).parent / FRONTEND_JS_PATH
         
         try:
-            # Async-safe file read to avoid blocking open()
             js_content = await hass.async_add_executor_job(
                 partial(Path(js_file_path).read_text, encoding="utf-8")
             )
 
-            # Replace configuration placeholders
-            js_content = js_content.replace('{{DEBUG_LOGGING}}', str(debug_logging).lower())
-            js_content = js_content.replace('{{MAX_NOTE_LENGTH}}', str(max_note_length))
+            js_content = js_content.replace("{{DEBUG_LOGGING}}", str(debug_logging).lower())
+            js_content = js_content.replace("{{MAX_NOTE_LENGTH}}", str(max_note_length))
+            js_content = js_content.replace("{{HIDE_BUTTONS_WHEN_EMPTY}}", str(hide_buttons).lower())
                 
-            return web.Response(text=js_content, content_type='application/javascript')
+            return web.Response(text=js_content, content_type="application/javascript")
             
         except FileNotFoundError:
             _LOGGER.error("JavaScript file not found: %s", js_file_path)
-            return web.Response(text="// Entity Notes: JavaScript file not found", content_type='application/javascript', status=404)
+            return web.Response(text="// Entity Notes: JavaScript file not found", content_type="application/javascript", status=404)
         except Exception as e:
             _LOGGER.error("Error serving JavaScript file: %s", e)
-            return web.Response(text="// Entity Notes: Error loading script", content_type='application/javascript', status=500)
+            return web.Response(text="// Entity Notes: Error loading script", content_type="application/javascript", status=500)
