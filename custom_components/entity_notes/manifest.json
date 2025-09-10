@@ -1,6 +1,6 @@
 {
   "domain": "entity_notes",
-  "name": "Entity Notes", 
+  "name": "Entity Notes",
   "codeowners": ["@martindell"],
   "config_flow": true,
   "dependencies": ["http"],
