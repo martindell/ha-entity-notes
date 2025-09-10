@@ -1,4 +1,3 @@
-
 """Config flow for Entity Notes integration."""
 from __future__ import annotations
 
@@ -10,15 +9,18 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import (
     DOMAIN,
     CONF_DEBUG_LOGGING,
     CONF_MAX_NOTE_LENGTH,
     CONF_AUTO_BACKUP,
+    CONF_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
+    DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,17 +52,21 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
                     ): bool,
                     vol.Optional(
-                        CONF_MAX_NOTE_LENGTH,
-                        default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
-                    ): vol.All(int, vol.Range(min=50, max=2000)),
+                        CONF_HIDE_BUTTONS_WHEN_EMPTY,
+                        default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                    ): bool,
                     vol.Optional(
                         CONF_AUTO_BACKUP,
                         default=current_options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
                     ): bool,
+                    vol.Optional(
+                        CONF_MAX_NOTE_LENGTH,
+                        default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+                    ): vol.All(int, vol.Range(min=50, max=2000)),
                 }),
                 errors=errors,
                 description_placeholders={
-                    "description": "⚠️ Entity Notes is already installed and will be automatically upgraded with your new settings. Your existing notes and data will be preserved during the upgrade process."
+                    "description": "⚠️ Entity Notes is already installed and will be automatically upgraded with your current settings."
                 },
             )
 
@@ -78,11 +84,11 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         
                         # Remove existing entries one by one
                         for entry in existing_entries:
-                            _LOGGER.debug(f"Removing existing entry: {entry.entry_id} (title: {entry.title})")
+                            _LOGGER.debug(f"Removing existing entry: {entry.entry_id} {title: {entry.title}}")
                             await self.hass.config_entries.async_remove(entry.entry_id)
                         
                         _LOGGER.info("Successfully removed existing Entity Notes entries")
-                        
+                    
                     except Exception as ex:
                         _LOGGER.error(f"Error during Entity Notes upgrade: {ex}")
                         errors["base"] = "upgrade_failed"
@@ -90,15 +96,16 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             step_id="user",
                             data_schema=vol.Schema({
                                 vol.Optional(CONF_DEBUG_LOGGING, default=DEFAULT_DEBUG_LOGGING): bool,
-                                vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
+                                vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
                                 vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
+                                vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
                             }),
                             errors=errors,
                             description_placeholders={
-                                "description": "❌ Error during upgrade. Please try again or manually remove the existing Entity Notes integration first from Settings > Devices & Services."
+                                "description": "❌ Error during upgrade. Please try again or manually remove the existing integration."
                             },
                         )
-
+                
                 # Create new entry (either fresh install or after successful upgrade)
                 await self.async_set_unique_id(DOMAIN)
                 
@@ -108,8 +115,9 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={},
                     options={
                         CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
-                        CONF_MAX_NOTE_LENGTH: max_length,
+                        CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
+                        CONF_MAX_NOTE_LENGTH: max_length,
                     },
                 )
                 
@@ -125,12 +133,13 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema({
                 vol.Optional(CONF_DEBUG_LOGGING, default=DEFAULT_DEBUG_LOGGING): bool,
-                vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
+                vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
                 vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
+                vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
             }),
             errors=errors,
             description_placeholders={
-                "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Configure your preferences below."
+                "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Configure the behavior and settings below."
             },
         )
 
@@ -142,7 +151,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle reconfiguration of the integration."""
-        entry = self._get_reconfigure_entry()
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         errors = {}
         
         if user_input is not None:
@@ -152,18 +161,22 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
             
             if not errors:
-                return self.async_update_reload_and_abort(
+                # Update the entry with new options
+                self.hass.config_entries.async_update_entry(
                     entry,
-                    data={},
                     options={
                         CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
-                        CONF_MAX_NOTE_LENGTH: max_length,
+                        CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
+                        CONF_MAX_NOTE_LENGTH: max_length,
                     },
-                    reason="reconfigure_successful",
                 )
+                
+                return self.async_create_entry(title="", data={})
 
-        current_options = entry.options or {}
+        # Get current values
+        current_options = entry.options if entry.options else {}
+        
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema({
@@ -172,31 +185,32 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
                 ): bool,
                 vol.Optional(
-                    CONF_MAX_NOTE_LENGTH,
-                    default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
-                ): vol.All(int, vol.Range(min=50, max=2000)),
+                    CONF_HIDE_BUTTONS_WHEN_EMPTY,
+                    default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                ): bool,
                 vol.Optional(
                     CONF_AUTO_BACKUP,
                     default=current_options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
                 ): bool,
+                vol.Optional(
+                    CONF_MAX_NOTE_LENGTH,
+                    default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+                ): vol.All(int, vol.Range(min=50, max=2000)),
             }),
             errors=errors,
-            description_placeholders={
-                "description": "Update your Entity Notes configuration settings."
-            },
         )
 
     @staticmethod
     @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> EntityNotesOptionsFlow:
-        """Get the options flow for this handler."""
+    ) -> config_entries.OptionsFlow:
+        """Create the options flow."""
         return EntityNotesOptionsFlow(config_entry)
 
 
 class EntityNotesOptionsFlow(config_entries.OptionsFlow):
-    """Handle Entity Notes options."""
+    """Entity Notes config flow options handler."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
@@ -215,22 +229,25 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
             
             if not errors:
-                # Create the options entry first
+                # Create the options entry
                 result = self.async_create_entry(
                     title="",
                     data={
                         CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
-                        CONF_MAX_NOTE_LENGTH: max_length,
+                        CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
-                    }
+                        CONF_MAX_NOTE_LENGTH: max_length,
+                    },
                 )
                 
-                # Automatically reload the integration to apply the new settings
+                # Reload the integration to apply new settings immediately
                 await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 
                 return result
 
-        current_options = self.config_entry.options or {}
+        # Get current values
+        current_options = self.config_entry.options if self.config_entry.options else {}
+        
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
@@ -239,16 +256,25 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                     default=current_options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
                 ): bool,
                 vol.Optional(
-                    CONF_MAX_NOTE_LENGTH,
-                    default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
-                ): vol.All(int, vol.Range(min=50, max=2000)),
+                    CONF_HIDE_BUTTONS_WHEN_EMPTY,
+                    default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                ): bool,
                 vol.Optional(
                     CONF_AUTO_BACKUP,
                     default=current_options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
                 ): bool,
+                vol.Optional(
+                    CONF_MAX_NOTE_LENGTH,
+                    default=current_options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+                ): vol.All(int, vol.Range(min=50, max=2000)),
             }),
             errors=errors,
-            description_placeholders={
-                "description": "Configure Entity Notes behavior and settings."
-            },
         )
+
+
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuth(HomeAssistantError):
+    """Error to indicate there is invalid auth."""
