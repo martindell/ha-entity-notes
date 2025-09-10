@@ -1,37 +1,34 @@
-"""
-Entity Notes – serve the frontend JS without blocking the event loop.
-"""
 from __future__ import annotations
 
-from functools import partial
-from pathlib import Path
-
-from aiohttp import web
-from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+
+DOMAIN = "entity_notes"
 
 
-async def async_setup(hass: HomeAssistant, _config) -> bool:
-    """Set up the integration and register the JS endpoint."""
-    hass.http.register_view(EntityNotesJSView())
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the integration from YAML (not used, but keep for safety)."""
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
     return True
 
 
-class EntityNotesJSView(HomeAssistantView):
-    """HTTP view to serve the entity-notes frontend script."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Entity Notes from a config entry."""
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+    # Nothing to initialize yet; we just keep a placeholder for future state.
+    hass.data[DOMAIN][entry.entry_id] = {}
+    return True
 
-    url = "/entity-notes.js"          # what the browser will request
-    name = "entity_notes:js"
-    requires_auth = False
 
-    async def get(self, request):
-        """Return the JS file (read safely off the event loop)."""
-        hass: HomeAssistant = request.app["hass"]
-        js_file_path = Path(__file__).parent / "entity-notes.js"
-
-        # Read the file in the executor to avoid 'blocking open() in event loop'
-        content = await hass.async_add_executor_job(
-            partial(js_file_path.read_text, encoding="utf-8")
-        )
-
-        return web.Response(text=content, content_type="application/javascript")
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    # If you add platforms later, forward unload here.
+    # For now, just clean up our stored state.
+    domain_data = hass.data.get(DOMAIN, {})
+    domain_data.pop(entry.entry_id, None)
+    # If empty, drop the domain bucket to keep memory tidy.
+    if not domain_data:
+        hass.data.pop(DOMAIN, None)
+    return True
