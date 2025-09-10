@@ -15,22 +15,22 @@ from .const import (
     DOMAIN,
     CONF_DEBUG_LOGGING,
     CONF_MAX_NOTE_LENGTH,
+    CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
+    DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-# Define the schema with better organization and user-friendly labels
+# Define the schema - three checkboxes, then number input
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        # Checkbox options grouped together at the top
         vol.Optional(CONF_DEBUG_LOGGING, default=DEFAULT_DEBUG_LOGGING): bool,
+        vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
         vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
-        
-        # Number input at the bottom
         vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(
             vol.Coerce(int), vol.Range(min=50, max=2000)
         ),
@@ -39,16 +39,11 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-    # Validate max note length
+    """Validate the user input."""
     max_length = data.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
     if not isinstance(max_length, int) or max_length < 50 or max_length > 2000:
         raise InvalidMaxLength
 
-    # Return info that you want to store in the config entry.
     return {"title": "Entity Notes"}
 
 
@@ -65,8 +60,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await validate_input(self.hass, user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
             except InvalidMaxLength:
                 errors["base"] = "invalid_max_length"
             except Exception:  # pylint: disable=broad-except
@@ -77,29 +70,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", 
-            data_schema=self._get_user_schema_with_labels(), 
+            data_schema=STEP_USER_DATA_SCHEMA, 
             errors=errors
         )
-
-    def _get_user_schema_with_labels(self):
-        """Get the user schema with friendly labels."""
-        return vol.Schema({
-            vol.Optional(
-                CONF_DEBUG_LOGGING, 
-                default=DEFAULT_DEBUG_LOGGING,
-                description="Enable debug logging"
-            ): bool,
-            vol.Optional(
-                CONF_HIDE_BUTTONS_WHEN_EMPTY, 
-                default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
-                description="Hide buttons when no note exists"
-            ): bool,
-            vol.Optional(
-                CONF_MAX_NOTE_LENGTH, 
-                default=DEFAULT_MAX_NOTE_LENGTH,
-                description="Maximum note length (50-2000 characters)"
-            ): vol.All(vol.Coerce(int), vol.Range(min=50, max=2000)),
-        })
 
     @staticmethod
     @config_entries.HANDLERS.register(DOMAIN)
@@ -125,8 +98,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         
         # Get current values from config entry
         current_debug = self.config_entry.data.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
-        current_max_length = self.config_entry.data.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
+        current_auto_backup = self.config_entry.data.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
         current_hide_buttons = self.config_entry.data.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+        current_max_length = self.config_entry.data.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
         
         if user_input is not None:
             try:
@@ -143,23 +117,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 )
                 return self.async_create_entry(title="", data={})
 
-        # Create schema with current values as defaults and friendly labels
+        # Create schema with current values as defaults - same order as initial setup
         options_schema = vol.Schema({
-            vol.Optional(
-                CONF_DEBUG_LOGGING, 
-                default=current_debug,
-                description="Enable debug logging"
-            ): bool,
-            vol.Optional(
-                CONF_HIDE_BUTTONS_WHEN_EMPTY, 
-                default=current_hide_buttons,
-                description="Hide buttons when no note exists"
-            ): bool,
-            vol.Optional(
-                CONF_MAX_NOTE_LENGTH, 
-                default=current_max_length,
-                description="Maximum note length (50-2000 characters)"
-            ): vol.All(vol.Coerce(int), vol.Range(min=50, max=2000)),
+            vol.Optional(CONF_DEBUG_LOGGING, default=current_debug): bool,
+            vol.Optional(CONF_AUTO_BACKUP, default=current_auto_backup): bool,
+            vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=current_hide_buttons): bool,
+            vol.Optional(CONF_MAX_NOTE_LENGTH, default=current_max_length): vol.All(
+                vol.Coerce(int), vol.Range(min=50, max=2000)
+            ),
         })
 
         return self.async_show_form(
