@@ -1,32 +1,31 @@
-
 # Entity Notes
 
-Add custom notes to any Home Assistant entity through the "more info" dialog.
+Add a simple “Notes” section to any entity’s **More info** dialog so you can keep device locations, maintenance hints, wiring details, and other context right where you need it.
+
+![Screenshot](screenshot.png)
 
 ## Features
-
-- **Universal compatibility** - Works with all Home Assistant entities
-- **Persistent storage** - Notes survive restarts and updates
-- **Auto-resizing interface** - Text area adapts to content length
-- **Character limit** - 200 character limit with visual feedback
-- **Instant saving** - Changes are saved automatically
-- **Clean interface** - Seamlessly integrates with Home Assistant's UI
-
-## Perfect for:
-
-- 📍 **Device locations** - "Living room lamp, behind the couch"
-- 🔧 **Maintenance notes** - "Last cleaned: 2024-01-15"
-- ⚙️ **Configuration details** - "Configured for motion detection"
-- 📝 **General reminders** - "Replace battery when below 20%"
+- Add notes to any entity (lights, sensors, switches, etc.)
+- Notes persist across restarts
+- Clean, auto-resizing input field
+- Desktop & mobile friendly
 
 ## Installation
+This integration is available in the [HACS default repository](https://github.com/hacs/default).
 
-After installation through HACS, add this to your `configuration.yaml`:
+1. In Home Assistant, open **HACS → Integrations**  
+2. Search for **Entity Notes**  
+3. Install the integration  
+4. **Restart Home Assistant**
 
-```yaml
-frontend:
-  extra_module_url:
-    - /local/entity-notes.js
-```
+## Usage
+1. Click any entity to open **More info**  
+2. Scroll to **Notes**  
+3. Type your note and **Save** (use **Delete** to clear a note)
 
-Then restart Home Assistant and start adding notes to your entities!
+### Tips
+- Empty notes are cleaned up automatically  
+- Notes are stored locally in your HA instance  
+
+## Support
+- Report bugs or suggest features: [GitHub Issues](https://github.com/martindell/ha-entity-notes/issues)
