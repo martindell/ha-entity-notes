@@ -1,5 +1,8 @@
 # Entity Notes
 
+[![HACS Default](https://img.shields.io/badge/HACS-Default-blue.svg)](https://github.com/hacs/default)
+[![Latest release](https://img.shields.io/github/v/release/martindell/ha-entity-notes?display_name=tag&sort=semver)](https://github.com/martindell/ha-entity-notes/releases)
+
 Add a simple “Notes” section to any entity’s **More info** dialog so you can keep device locations, maintenance hints, wiring details, and other context right where you need it.
 
 ![Screenshot](screenshot.png)
