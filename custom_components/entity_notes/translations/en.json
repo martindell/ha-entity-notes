@@ -6,6 +6,7 @@
         "description": "Entity Notes allows you to add custom notes to any Home Assistant entity. Configure your preferences below.",
         "data": {
           "debug_logging": "Enable debug logging",
+          "hide_buttons_when_empty": "Hide buttons when no note exists",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups"
         }
@@ -15,6 +16,7 @@
         "description": "Update your Entity Notes configuration settings.",
         "data": {
           "debug_logging": "Enable debug logging",
+          "hide_buttons_when_empty": "Hide buttons when no note exists",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups"
         }
@@ -36,6 +38,7 @@
         "description": "Configure Entity Notes behavior and settings.",
         "data": {
           "debug_logging": "Enable debug logging",
+          "hide_buttons_when_empty": "Hide buttons when no note exists",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups"
         }
