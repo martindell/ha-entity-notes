@@ -67,7 +67,7 @@ When you change any of these options, please reload the integration.  HA only re
 | Debug Logging | Enable detailed logging for troubleshooting | `false` | true/false |
 | Hide Buttons When Empty | Hide Save/Delete buttons when no note exists | `false` | true/false |
 | Enable automatic backups | Include notes in HA backups | `true` | true/false |
-| Maximum Note Length | Character limit for notes | `250` | 50-2000 |
+| Maximum Note Length | Character limit for notes | `200` | 50-2000 |
 
 #### Enable Debug Logging
 
@@ -330,7 +330,7 @@ Get all notes (fires an event with the result).
 
 ### Notes not appearing
 
-- Clear browser cache and/or force refresh (Ctrl+F5)
+- Clear browser cache and/or force refresh
 - On mobile devices, clear the Home Assistant app cache
 - Restart Home Assistant after configuration changes
 - Check that the integration is properly loaded in **Settings → Devices & Services**
@@ -373,10 +373,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Test thoroughly
 5. Submit a pull request
 
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes in each version.
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -388,8 +384,3 @@ If you encounter any issues or have questions:
 1. Check the [troubleshooting section](#troubleshooting)
 2. Search existing [issues](https://github.com/martindell/ha-entity-notes/issues)
 3. Create a new issue with detailed information about your problem
-
-## Acknowledgments
-
-- Thanks to the Home Assistant community for feedback and contributions
-- Special thanks to all contributors who have helped improve this integration
