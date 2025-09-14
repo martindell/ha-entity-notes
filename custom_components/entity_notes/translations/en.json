@@ -3,40 +3,49 @@
     "step": {
       "user": {
         "title": "Entity Notes Configuration",
-        "description": "Configure Entity Notes integration settings.",
+        "description": "{description}",
         "data": {
           "debug_logging": "Enable debug logging",
+          "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "max_note_length": "Maximum note length (50-2000 characters)"
+          "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Entity Notes",
+        "description": "{description}",
+        "data": {
+          "debug_logging": "Enable debug logging",
+          "max_note_length": "Maximum note length (50-2000 characters)",
+          "auto_backup": "Enable automatic backups",
+          "hide_buttons_when_empty": "Hide buttons when no note exists"
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect",
       "invalid_max_length": "Maximum note length must be between 50 and 2000 characters",
-      "unknown": "Unexpected error"
+      "upgrade_failed": "Failed to upgrade existing installation"
     },
     "abort": {
-      "already_configured": "Entity Notes is already configured"
+      "already_configured": "Entity Notes is already configured",
+      "reconfigure_successful": "Configuration updated successfully"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Entity Notes Options",
-        "description": "Update Entity Notes integration settings.",
+        "description": "{description}",
         "data": {
           "debug_logging": "Enable debug logging",
+          "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "max_note_length": "Maximum note length (50-2000 characters)"
+          "hide_buttons_when_empty": "Hide buttons when no note exists"
         }
       }
     },
     "error": {
-      "invalid_max_length": "Maximum note length must be between 50 and 2000 characters",
-      "unknown": "Unexpected error"
+      "invalid_max_length": "Maximum note length must be between 50 and 2000 characters"
     }
   }
 }
