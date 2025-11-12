@@ -8,7 +8,8 @@
           "debug_logging": "Enable debug logging",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists"
+          "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists",
+          "delete_notes_with_entity": "Automatically delete notes when entities are removed"
         }
       },
       "reconfigure": {
@@ -18,7 +19,8 @@
           "debug_logging": "Enable debug logging",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide buttons when no note exists"
+          "hide_buttons_when_empty": "Hide buttons when no note exists",
+          "delete_notes_with_entity": "Automatically delete notes when entities are removed"
         }
       }
     },
@@ -40,7 +42,8 @@
           "debug_logging": "Enable debug logging",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide buttons when no note exists"
+          "hide_buttons_when_empty": "Hide buttons when no note exists",
+          "delete_notes_with_entity": "Automatically delete notes when entities are removed"
         }
       }
     },

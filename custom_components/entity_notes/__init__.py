@@ -22,10 +22,12 @@ from .const import (
     CONF_MAX_NOTE_LENGTH,
     CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
+    CONF_DELETE_NOTES_WITH_ENTITY,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
+    DEFAULT_DELETE_NOTES_WITH_ENTITY,
     FRONTEND_JS_PATH,
     EVENT_NOTES_UPDATED,
     SERVICE_SET_NOTE,
@@ -58,6 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     max_note_length = options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
     auto_backup = options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
     hide_buttons_when_empty = options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+    delete_notes_with_entity = options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
     
     if debug_logging:
         _LOGGER.setLevel(logging.DEBUG)
@@ -87,6 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_MAX_NOTE_LENGTH: max_note_length,
                 CONF_AUTO_BACKUP: auto_backup,
                 CONF_HIDE_BUTTONS_WHEN_EMPTY: hide_buttons_when_empty,
+                CONF_DELETE_NOTES_WITH_ENTITY: delete_notes_with_entity,
             },
             "entry_id": entry.entry_id,
         }
@@ -106,6 +110,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Register services
         await async_register_services(hass)
+
+        # Set up entity removal tracking if enabled
+        if delete_notes_with_entity:
+            async def entity_removed_listener(event):
+                """Handle entity removal events."""
+                entity_id = event.data.get("entity_id")
+                old_state = event.data.get("old_state")
+                new_state = event.data.get("new_state")
+
+                # Entity was removed if new_state is None and old_state existed
+                if new_state is None and old_state is not None and entity_id:
+                    notes_data = hass.data[DOMAIN]["notes"]
+
+                    # Check if we have a note for this entity
+                    if entity_id in notes_data:
+                        store = hass.data[DOMAIN]["store"]
+                        del notes_data[entity_id]
+                        await store.async_save(notes_data)
+
+                        # Fire event
+                        hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": ""})
+
+                        if debug_logging:
+                            _LOGGER.debug("Deleted note for removed entity: %s", entity_id)
+                        else:
+                            _LOGGER.info("Deleted note for removed entity: %s", entity_id)
+
+            # Listen for state_changed events
+            hass.bus.async_listen("state_changed", entity_removed_listener)
+            _LOGGER.debug("Entity removal tracking enabled")
 
         _LOGGER.info("Entity Notes integration setup completed successfully")
         return True

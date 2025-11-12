@@ -10,6 +10,7 @@ CONF_DEBUG_LOGGING = "debug_logging"
 CONF_MAX_NOTE_LENGTH = "max_note_length"
 CONF_AUTO_BACKUP = "auto_backup"
 CONF_HIDE_BUTTONS_WHEN_EMPTY = "hide_buttons_when_empty"
+CONF_DELETE_NOTES_WITH_ENTITY = "delete_notes_with_entity"
 
 # Events
 EVENT_NOTES_UPDATED = "entity_notes_updated"
@@ -27,6 +28,7 @@ DEFAULT_DEBUG_LOGGING = False
 DEFAULT_MAX_NOTE_LENGTH = 200
 DEFAULT_AUTO_BACKUP = True
 DEFAULT_HIDE_BUTTONS_WHEN_EMPTY = True
+DEFAULT_DELETE_NOTES_WITH_ENTITY = True
 
 # File paths
 FRONTEND_JS_PATH = "entity-notes.js"
