@@ -1,0 +1,130 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get current version
+        id: current_version
+        run: |
+          VERSION=$(cat custom_components/entity_notes/manifest.json | python3 -c "import sys, json; print(json.load(sys.stdin)['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Bump version
+        id: bump_version
+        run: |
+          CURRENT="${{ steps.current_version.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$CURRENT"
+
+          case "${{ github.event.inputs.version_bump }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${major}.${minor}.${patch}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+          # Update manifest.json
+          python3 -c "
+          import json
+          with open('custom_components/entity_notes/manifest.json', 'r') as f:
+              manifest = json.load(f)
+          manifest['version'] = '$NEW_VERSION'
+          with open('custom_components/entity_notes/manifest.json', 'w') as f:
+              json.dump(manifest, f, indent=2)
+              f.write('\n')
+          "
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add custom_components/entity_notes/manifest.json
+          git commit -m "Bump version to ${{ steps.bump_version.outputs.new_version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.bump_version.outputs.new_version }}"
+          git push origin "v${{ steps.bump_version.outputs.new_version }}"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+          fi
+
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.bump_version.outputs.new_version }}
+          release_name: Release v${{ steps.bump_version.outputs.new_version }}
+          body: |
+            ## Changes in this Release
+
+            ${{ steps.changelog.outputs.commits }}
+
+            ## Installation
+
+            ### Via HACS (recommended)
+            1. Open HACS
+            2. Go to Integrations
+            3. Search for "Entity Notes"
+            4. Click Update
+
+            ### Manual Installation
+            1. Download `entity_notes.zip` from the assets below
+            2. Extract to `custom_components/entity_notes`
+            3. Restart Home Assistant
+          draft: false
+          prerelease: false
