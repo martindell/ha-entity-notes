@@ -16,10 +16,12 @@ from .const import (
     CONF_MAX_NOTE_LENGTH,
     CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
+    CONF_DELETE_NOTES_WITH_ENTITY,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
+    DEFAULT_DELETE_NOTES_WITH_ENTITY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,6 +64,10 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_HIDE_BUTTONS_WHEN_EMPTY,
                         default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
                     ): bool,
+                    vol.Optional(
+                        CONF_DELETE_NOTES_WITH_ENTITY,
+                        default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
+                    ): bool,
                 }),
                 errors=errors,
                 description_placeholders={
@@ -98,6 +104,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
                                 vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
                                 vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
+                                vol.Optional(CONF_DELETE_NOTES_WITH_ENTITY, default=DEFAULT_DELETE_NOTES_WITH_ENTITY): bool,
                             }),
                             errors=errors,
                             description_placeholders={
@@ -117,6 +124,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MAX_NOTE_LENGTH: max_length,
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
+                        CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
                     },
                 )
                 
@@ -135,6 +143,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
                 vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
                 vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
+                vol.Optional(CONF_DELETE_NOTES_WITH_ENTITY, default=DEFAULT_DELETE_NOTES_WITH_ENTITY): bool,
             }),
             errors=errors,
             description_placeholders={
@@ -168,6 +177,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MAX_NOTE_LENGTH: max_length,
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
+                        CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
                     },
                     reason="reconfigure_successful",
                 )
@@ -191,6 +201,10 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_HIDE_BUTTONS_WHEN_EMPTY,
                     default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                ): bool,
+                vol.Optional(
+                    CONF_DELETE_NOTES_WITH_ENTITY,
+                    default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
                 ): bool,
             }),
             errors=errors,
@@ -236,6 +250,7 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                         CONF_MAX_NOTE_LENGTH: max_length,
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
+                        CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
                     }
                 )
                 
@@ -263,6 +278,10 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_HIDE_BUTTONS_WHEN_EMPTY,
                     default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                ): bool,
+                vol.Optional(
+                    CONF_DELETE_NOTES_WITH_ENTITY,
+                    default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
                 ): bool,
             }),
             errors=errors,
