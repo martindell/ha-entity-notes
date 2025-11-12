@@ -1,13 +1,21 @@
 {
   "domain": "entity_notes",
   "name": "Entity Notes",
-  "codeowners": ["@martindell"],
+  "codeowners": [
+    "@martindell"
+  ],
   "config_flow": true,
-  "dependencies": ["http"],
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/martindell/ha-entity-notes",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/martindell/ha-entity-notes/issues",
-  "loggers": ["custom_components.entity_notes"],
-  "requirements": ["voluptuous"],
-  "version": "2.1.0"
+  "loggers": [
+    "custom_components.entity_notes"
+  ],
+  "requirements": [
+    "voluptuous"
+  ],
+  "version": "2.2.0"
 }
