@@ -93,6 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_DELETE_NOTES_WITH_ENTITY: delete_notes_with_entity,
             },
             "entry_id": entry.entry_id,
+            "listener_remove": None,  # Will store the event listener removal callable
         }
 
         # Register the API view
@@ -137,8 +138,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         else:
                             _LOGGER.info("Deleted note for removed entity: %s", entity_id)
 
-            # Listen for state_changed events
-            hass.bus.async_listen("state_changed", entity_removed_listener)
+            # Listen for state_changed events and store the removal callable
+            listener_remove = hass.bus.async_listen("state_changed", entity_removed_listener)
+            hass.data[DOMAIN]["listener_remove"] = listener_remove
             _LOGGER.debug("Entity removal tracking enabled")
 
         _LOGGER.info("Entity Notes integration setup completed successfully")
@@ -152,8 +154,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Entity Notes integration")
-    
+
     try:
+        # Remove event listener if it exists
+        if DOMAIN in hass.data and hass.data[DOMAIN].get("listener_remove"):
+            hass.data[DOMAIN]["listener_remove"]()
+            _LOGGER.debug("Entity removal listener removed")
+
         # Remove services
         services_to_remove = [
             SERVICE_SET_NOTE,
@@ -163,17 +170,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_BACKUP_NOTES,
             SERVICE_RESTORE_NOTES,
         ]
-        
+
         for service in services_to_remove:
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)
-        
+
         # Clean up data
         hass.data.pop(DOMAIN, None)
-        
+
         _LOGGER.info("Entity Notes integration unloaded successfully")
         return True
-        
+
     except Exception as e:
         _LOGGER.error("Error unloading Entity Notes: %s", e)
         return False
