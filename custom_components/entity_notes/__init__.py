@@ -255,10 +255,14 @@ async def async_register_services(hass: HomeAssistant) -> None:
         """Backup all notes to a file."""
         notes_data = hass.data[DOMAIN]["notes"]
         backup_path = hass.config.path("entity_notes_backup.json")
-        
+
         try:
-            with open(backup_path, "w") as f:
-                json.dump(notes_data, f, indent=2)
+            # Use async_add_executor_job to avoid blocking the event loop
+            def write_backup():
+                with open(backup_path, "w") as f:
+                    json.dump(notes_data, f, indent=2)
+
+            await hass.async_add_executor_job(write_backup)
             _LOGGER.info("Notes backed up to %s", backup_path)
         except Exception as e:
             _LOGGER.error("Failed to backup notes: %s", e)
@@ -266,11 +270,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
     async def restore_notes_service(call):
         """Restore notes from a backup file."""
         backup_path = hass.config.path("entity_notes_backup.json")
-        
+
         try:
-            with open(backup_path, "r") as f:
-                backup_data = json.load(f)
-            
+            # Use async_add_executor_job to avoid blocking the event loop
+            def read_backup():
+                with open(backup_path, "r") as f:
+                    return json.load(f)
+
+            backup_data = await hass.async_add_executor_job(read_backup)
+
             store = hass.data[DOMAIN]["store"]
             hass.data[DOMAIN]["notes"].update(backup_data)
             await store.async_save(hass.data[DOMAIN]["notes"])
@@ -385,21 +393,25 @@ class EntityNotesJSView(HomeAssistantView):
         debug_logging = hass.data[DOMAIN]["config"].get(CONF_DEBUG_LOGGING, False)
         max_note_length = hass.data[DOMAIN]["config"].get(CONF_MAX_NOTE_LENGTH, 200)
         hide_buttons_when_empty = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_WHEN_EMPTY, False)
-        
+
         # Get the JavaScript file path
         js_file_path = Path(__file__).parent / FRONTEND_JS_PATH
-        
+
         try:
-            with open(js_file_path, 'r') as f:
-                js_content = f.read()
-                
+            # Use async_add_executor_job to avoid blocking the event loop
+            def read_file():
+                with open(js_file_path, 'r') as f:
+                    return f.read()
+
+            js_content = await hass.async_add_executor_job(read_file)
+
             # Replace configuration placeholders
             js_content = js_content.replace('{{DEBUG_LOGGING}}', str(debug_logging).lower())
             js_content = js_content.replace('{{MAX_NOTE_LENGTH}}', str(max_note_length))
             js_content = js_content.replace('{{HIDE_BUTTONS_WHEN_EMPTY}}', str(hide_buttons_when_empty).lower())
-                
+
             return web.Response(text=js_content, content_type='application/javascript')
-            
+
         except FileNotFoundError:
             _LOGGER.error("JavaScript file not found: %s", js_file_path)
             return web.Response(text="// Entity Notes: JavaScript file not found", content_type='application/javascript', status=404)
