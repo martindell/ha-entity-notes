@@ -72,66 +72,66 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     delete_notes_with_entity = options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
     delete_notes_with_device = options.get(CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE)
     enable_device_notes = options.get(CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES)
-    
+
     if debug_logging:
         _LOGGER.setLevel(logging.DEBUG)
         _LOGGER.debug("Debug logging enabled for Entity Notes")
 
-    # Define migration function for Store
-    async def _async_migrate_func(old_major_version, old_minor_version, old_data):
-        """Migrate storage from v1 to v2."""
-        _LOGGER.warning("=" * 80)
-        _LOGGER.warning("MIGRATING Entity Notes storage")
-        _LOGGER.warning("From version %d.%d to %d.%d",
-                       old_major_version, old_minor_version,
-                       STORAGE_VERSION, 1)
-        _LOGGER.warning("Found %d entity notes to migrate", len(old_data) if old_data else 0)
-
-        if old_major_version == 1:
-            # v1 format: flat dictionary of entity_id: note
-            # v2 format: structured with entity_notes and device_notes
-
-            # Create backup before migration
-            try:
-                backup_path = Path(hass.config.path(".storage")) / "entity_notes.notes.backup_v1"
-                backup_data = {
-                    "version": old_major_version,
-                    "minor_version": old_minor_version,
-                    "key": STORAGE_KEY,
-                    "data": old_data
-                }
-                with open(backup_path, 'w') as f:
-                    json.dump(backup_data, f, indent=2)
-                _LOGGER.warning("Created backup at: %s", backup_path)
-            except Exception as backup_error:
-                _LOGGER.error("Failed to create backup: %s", backup_error)
-                # Continue anyway - better to migrate than lose data
-
-            # Migrate to v2 format
-            migrated_data = {
-                "entity_notes": old_data.copy() if old_data else {},
-                "device_notes": {}
-            }
-
-            _LOGGER.warning("Successfully migrated %d entity notes", len(migrated_data["entity_notes"]))
-            _LOGGER.warning("=" * 80)
-            return migrated_data
-
-        # Unknown version
-        _LOGGER.error("Cannot migrate from version %d - unknown version", old_major_version)
-        return {"entity_notes": {}, "device_notes": {}}
-
     try:
-        # Initialize storage with migration function
-        _LOGGER.debug("Initializing storage with migration support")
-        store = Store(hass, STORAGE_VERSION, STORAGE_KEY,
-                     encoder=None,
-                     atomic_writes=True,
-                     minor_version=1,
-                     read_only=False,
-                     migration_cb=_async_migrate_func)
+        # Check for v1 storage and migrate BEFORE creating Store
+        storage_path = Path(hass.config.path(".storage")) / STORAGE_KEY
 
-        # Load existing notes (migration handled automatically by Store)
+        if storage_path.exists():
+            try:
+                with open(storage_path, 'r') as f:
+                    file_data = json.load(f)
+                file_version = file_data.get("version", 1)
+
+                if file_version == 1:
+                    _LOGGER.warning("=" * 80)
+                    _LOGGER.warning("MIGRATING Entity Notes from v1 to v2")
+                    _LOGGER.warning("Found storage version 1, upgrading to version 2")
+
+                    old_data = file_data.get("data", {})
+                    _LOGGER.warning("Found %d entity notes to migrate", len(old_data))
+
+                    # Create backup
+                    try:
+                        backup_path = Path(hass.config.path(".storage")) / "entity_notes.notes.backup_v1"
+                        with open(backup_path, 'w') as f:
+                            json.dump(file_data, f, indent=2)
+                        _LOGGER.warning("Created backup at: %s", backup_path)
+                    except Exception as backup_error:
+                        _LOGGER.error("Failed to create backup: %s", backup_error)
+
+                    # Prepare migrated data in v2 format
+                    migrated_data = {
+                        "version": STORAGE_VERSION,
+                        "minor_version": 1,
+                        "key": STORAGE_KEY,
+                        "data": {
+                            "entity_notes": old_data.copy(),
+                            "device_notes": {}
+                        }
+                    }
+
+                    # Write migrated file
+                    with open(storage_path, 'w') as f:
+                        json.dump(migrated_data, f, indent=2)
+
+                    _LOGGER.warning("Successfully migrated %d entity notes to v2", len(old_data))
+                    _LOGGER.warning("=" * 80)
+
+            except Exception as e:
+                _LOGGER.error("Error during migration: %s", e)
+                import traceback
+                _LOGGER.error("Traceback: %s", traceback.format_exc())
+
+        # Initialize storage (now v2 format if migration happened)
+        _LOGGER.debug("Initializing storage")
+        store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+
+        # Load existing notes
         try:
             stored_data = await store.async_load()
 
