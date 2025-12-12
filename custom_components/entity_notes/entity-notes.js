@@ -509,6 +509,19 @@ function setupDialogObserver() {
                         });
                     }
 
+                    // Check if this is a device registry detail dialog (device settings)
+                    if (window.entityNotes.enableDeviceNotes && node.tagName === 'DIALOG-DEVICE-REGISTRY-DETAIL') {
+                        debugLog('Entity Notes: Device registry detail dialog detected');
+
+                        // Try injection with multiple delays
+                        [100, 300, 600, 1000].forEach(delay => {
+                            setTimeout(() => {
+                                debugLog('Entity Notes: Attempting device injection after ' + delay + 'ms delay');
+                                injectNotesIntoDeviceDialog(node);
+                            }, delay);
+                        });
+                    }
+
                     // Check if this is a device info dialog
                     if (window.entityNotes.enableDeviceNotes && node.tagName === 'HA-DIALOG') {
                         // Device dialogs are typically ha-dialog elements
@@ -564,6 +577,16 @@ function setupDialogObserver() {
     }
 
     if (window.entityNotes.enableDeviceNotes) {
+        // Check for device registry detail dialogs
+        const existingDeviceRegistryDialogs = homeAssistant.shadowRoot.querySelectorAll('dialog-device-registry-detail');
+        if (existingDeviceRegistryDialogs.length > 0) {
+            debugLog('Entity Notes: Found existing device registry dialogs in shadow root: ' + existingDeviceRegistryDialogs.length);
+            existingDeviceRegistryDialogs.forEach(dialog => {
+                setTimeout(() => injectNotesIntoDeviceDialog(dialog), 100);
+            });
+        }
+
+        // Check for general ha-dialog elements
         const existingDeviceDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-dialog');
         if (existingDeviceDialogs.length > 0) {
             debugLog('Entity Notes: Found existing ha-dialogs in shadow root: ' + existingDeviceDialogs.length);
@@ -592,6 +615,14 @@ function initialize() {
         });
 
         if (window.entityNotes.enableDeviceNotes) {
+            // Check for device registry detail dialogs
+            const existingDeviceRegistryDialogs = homeAssistant.shadowRoot.querySelectorAll('dialog-device-registry-detail');
+            debugLog('Entity Notes: Found existing device registry dialogs during init: ' + existingDeviceRegistryDialogs.length);
+            existingDeviceRegistryDialogs.forEach(dialog => {
+                setTimeout(() => injectNotesIntoDeviceDialog(dialog), 100);
+            });
+
+            // Check for general ha-dialog elements
             const existingDeviceDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-dialog');
             debugLog('Entity Notes: Found existing device dialogs during init: ' + existingDeviceDialogs.length);
             existingDeviceDialogs.forEach(dialog => {
