@@ -2,18 +2,19 @@ console.log('Entity Notes: Script loading...');
 
 // Create global namespace with configuration from backend
 window.entityNotes = {
-    version: '1.3.0',
+    version: '2.0.0',
     debug: {{DEBUG_LOGGING}},
     maxNoteLength: {{MAX_NOTE_LENGTH}},
     hideButtonsWhenEmpty: {{HIDE_BUTTONS_WHEN_EMPTY}},
-    
+    enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
+
     // Convenience methods for users
-    enableDebug: function() { 
-        this.debug = true; 
-        console.log('Entity Notes: Debug mode enabled. Refresh page or open entity dialogs to see debug output.');
+    enableDebug: function() {
+        this.debug = true;
+        console.log('Entity Notes: Debug mode enabled. Refresh page or open entity/device dialogs to see debug output.');
     },
-    disableDebug: function() { 
-        this.debug = false; 
+    disableDebug: function() {
+        this.debug = false;
         console.log('Entity Notes: Debug mode disabled.');
     }
 };
@@ -196,41 +197,46 @@ class EntityNotesCard extends HTMLElement {
     }
 
     async loadNote() {
-        const entityId = this.getAttribute('entity-id');
-        debugLog('Entity Notes: Loading note for ' + entityId);
-        if (!entityId) return;
+        const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
+        const type = this.getAttribute('type') || 'entity';
+        const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
+
+        debugLog(`Entity Notes: Loading note for ${type} ${itemId}`);
+        if (!itemId) return;
 
         try {
-            const response = await fetch(`/api/entity_notes/${entityId}`);
+            const response = await fetch(`/api/${apiPath}/${itemId}`);
             const data = await response.json();
-            
+
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
             const noteText = data.note || '';
             textarea.value = noteText;
-            
+
             // Track if there's an existing note
             this.hasExistingNote = noteText.length > 0;
-            
+
             this.updateCharCount();
             this.updateButtonVisibility();
             setTimeout(() => this.autoResize(), 10);
-            
-            debugLog('Entity Notes: Note loaded, hasExistingNote: ' + this.hasExistingNote);
-            
+
+            debugLog(`Entity Notes: Note loaded for ${type}, hasExistingNote: ${this.hasExistingNote}`);
+
         } catch (error) {
-            console.error('Entity Notes: Error loading note:', error);
+            console.error(`Entity Notes: Error loading note for ${type}:`, error);
         }
     }
 
     async saveNote() {
-        const entityId = this.getAttribute('entity-id');
+        const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
+        const type = this.getAttribute('type') || 'entity';
+        const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const note = textarea.value.trim();
 
-        debugLog('Entity Notes: Saving note for ' + entityId + ': ' + note);
+        debugLog(`Entity Notes: Saving note for ${type} ${itemId}: ${note}`);
 
         try {
-            const response = await fetch(`/api/entity_notes/${entityId}`, {
+            const response = await fetch(`/api/${apiPath}/${itemId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ note })
@@ -240,21 +246,24 @@ class EntityNotesCard extends HTMLElement {
                 // Update the existing note status
                 this.hasExistingNote = note.length > 0;
                 this.updateButtonVisibility();
-                debugLog('Entity Notes: Note saved successfully, hasExistingNote: ' + this.hasExistingNote);
+                debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
             } else {
-                console.error('Entity Notes: Save failed');
+                console.error(`Entity Notes: Save failed for ${type}`);
             }
         } catch (error) {
-            console.error('Entity Notes: Error saving note:', error);
+            console.error(`Entity Notes: Error saving note for ${type}:`, error);
         }
     }
 
     async deleteNote() {
-        const entityId = this.getAttribute('entity-id');
-        debugLog('Entity Notes: Deleting note for ' + entityId);
+        const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
+        const type = this.getAttribute('type') || 'entity';
+        const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
+
+        debugLog(`Entity Notes: Deleting note for ${type} ${itemId}`);
 
         try {
-            const response = await fetch(`/api/entity_notes/${entityId}`, {
+            const response = await fetch(`/api/${apiPath}/${itemId}`, {
                 method: 'DELETE'
             });
 
@@ -265,10 +274,10 @@ class EntityNotesCard extends HTMLElement {
                 this.updateCharCount();
                 this.updateButtonVisibility();
                 this.autoResize();
-                debugLog('Entity Notes: Note deleted successfully');
+                debugLog(`Entity Notes: Note deleted successfully for ${type}`);
             }
         } catch (error) {
-            console.error('Entity Notes: Error deleting note:', error);
+            console.error(`Entity Notes: Error deleting note for ${type}:`, error);
         }
     }
 }
@@ -371,9 +380,108 @@ function injectNotesIntoDialog(dialog) {
     }, 100);
 }
 
+function findDeviceId(dialog) {
+    debugLog('Entity Notes: Finding device ID for dialog');
+
+    // Try multiple methods to get device ID
+    const methods = [
+        () => dialog._params?.device?.id,
+        () => dialog._params?.deviceId,
+        () => dialog.device?.id,
+        () => dialog.deviceId,
+        () => dialog.getAttribute?.('device-id'),
+        () => dialog.dataset?.deviceId,
+        () => {
+            // Try to find device ID in dialog content
+            const content = dialog.shadowRoot?.querySelector('.content');
+            if (content) {
+                const deviceInfo = content.querySelector('[device-id]');
+                return deviceInfo?.getAttribute('device-id');
+            }
+        }
+    ];
+
+    for (const method of methods) {
+        try {
+            const deviceId = method();
+            if (deviceId) {
+                debugLog('Entity Notes: Found device ID: ' + deviceId);
+                return deviceId;
+            }
+        } catch (e) {
+            // Continue to next method
+        }
+    }
+
+    debugLog('Entity Notes: No device ID found');
+    return null;
+}
+
+function injectNotesIntoDeviceDialog(dialog) {
+    if (!window.entityNotes.enableDeviceNotes) {
+        debugLog('Entity Notes: Device notes disabled in config');
+        return;
+    }
+
+    debugLog('Entity Notes: Attempting to inject notes into device dialog');
+
+    if (!dialog || !dialog.shadowRoot) {
+        debugLog('Entity Notes: No device dialog or shadowRoot found');
+        return;
+    }
+
+    // Check if already injected
+    if (dialog.shadowRoot.querySelector('entity-notes-card[type="device"]')) {
+        debugLog('Entity Notes: Device notes already injected');
+        return;
+    }
+
+    const deviceId = findDeviceId(dialog);
+    if (!deviceId) {
+        debugLog('Entity Notes: No device ID found for dialog');
+        return;
+    }
+
+    // Try multiple selectors to find content area
+    const selectors = [
+        '.content',
+        '.mdc-dialog__content',
+        '[slot="content"]',
+        '.dialog-content',
+        'ha-dialog-content'
+    ];
+
+    let contentArea = null;
+    for (const selector of selectors) {
+        contentArea = dialog.shadowRoot.querySelector(selector);
+        if (contentArea) {
+            debugLog('Entity Notes: Found device dialog content area with selector: ' + selector);
+            break;
+        }
+    }
+
+    if (!contentArea) {
+        debugLog('Entity Notes: No content area found in device dialog');
+        return;
+    }
+
+    // Create and inject notes card
+    const notesCard = document.createElement('entity-notes-card');
+    notesCard.setAttribute('device-id', deviceId);
+    notesCard.setAttribute('type', 'device');
+    contentArea.appendChild(notesCard);
+
+    debugLog('Entity Notes: Notes card injected for device: ' + deviceId);
+
+    // Load the note after a short delay
+    setTimeout(() => {
+        notesCard.loadNote();
+    }, 100);
+}
+
 function setupDialogObserver() {
     debugLog('Entity Notes: Setting up dialog observer');
-    
+
     const homeAssistant = document.querySelector('home-assistant');
     if (!homeAssistant?.shadowRoot) {
         debugLog('Entity Notes: Home Assistant shadow root not found, retrying in 1 second...');
@@ -387,28 +495,53 @@ function setupDialogObserver() {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType === 1) {
                     debugLog('Entity Notes: Node added to shadow DOM: ' + node.tagName);
-                    
-                    // Check if this is a more-info dialog
+
+                    // Check if this is a more-info dialog (entity)
                     if (node.tagName === 'HA-MORE-INFO-DIALOG') {
                         debugLog('Entity Notes: More-info dialog detected');
-                        
+
                         // Try injection with multiple delays to ensure dialog is fully loaded
                         [100, 300, 600, 1000].forEach(delay => {
                             setTimeout(() => {
-                                debugLog('Entity Notes: Attempting injection after ' + delay + 'ms delay');
+                                debugLog('Entity Notes: Attempting entity injection after ' + delay + 'ms delay');
                                 injectNotesIntoDialog(node);
                             }, delay);
                         });
                     }
-                    
+
+                    // Check if this is a device info dialog
+                    if (window.entityNotes.enableDeviceNotes && node.tagName === 'HA-DIALOG') {
+                        // Device dialogs are typically ha-dialog elements
+                        // We need to check if they contain device info
+                        debugLog('Entity Notes: HA-Dialog detected, checking if it is a device dialog');
+
+                        // Try injection with multiple delays
+                        [100, 300, 600, 1000].forEach(delay => {
+                            setTimeout(() => {
+                                debugLog('Entity Notes: Attempting device injection after ' + delay + 'ms delay');
+                                injectNotesIntoDeviceDialog(node);
+                            }, delay);
+                        });
+                    }
+
                     // Also check for nested dialogs
-                    const nestedDialogs = node.querySelectorAll?.('ha-more-info-dialog');
-                    nestedDialogs?.forEach(dialog => {
-                        debugLog('Entity Notes: Found nested dialog');
+                    const nestedEntityDialogs = node.querySelectorAll?.('ha-more-info-dialog');
+                    nestedEntityDialogs?.forEach(dialog => {
+                        debugLog('Entity Notes: Found nested entity dialog');
                         [100, 300, 600].forEach(delay => {
                             setTimeout(() => injectNotesIntoDialog(dialog), delay);
                         });
                     });
+
+                    if (window.entityNotes.enableDeviceNotes) {
+                        const nestedDeviceDialogs = node.querySelectorAll?.('ha-dialog');
+                        nestedDeviceDialogs?.forEach(dialog => {
+                            debugLog('Entity Notes: Found nested ha-dialog');
+                            [100, 300, 600].forEach(delay => {
+                                setTimeout(() => injectNotesIntoDeviceDialog(dialog), delay);
+                            });
+                        });
+                    }
                 }
             });
         });
@@ -422,14 +555,24 @@ function setupDialogObserver() {
     });
     
     // Also check for existing dialogs in shadow root
-    const existingDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
-    if (existingDialogs.length > 0) {
-        debugLog('Entity Notes: Found existing dialogs in shadow root: ' + existingDialogs.length);
-        existingDialogs.forEach(dialog => {
+    const existingEntityDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
+    if (existingEntityDialogs.length > 0) {
+        debugLog('Entity Notes: Found existing entity dialogs in shadow root: ' + existingEntityDialogs.length);
+        existingEntityDialogs.forEach(dialog => {
             setTimeout(() => injectNotesIntoDialog(dialog), 100);
         });
     }
-    
+
+    if (window.entityNotes.enableDeviceNotes) {
+        const existingDeviceDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-dialog');
+        if (existingDeviceDialogs.length > 0) {
+            debugLog('Entity Notes: Found existing ha-dialogs in shadow root: ' + existingDeviceDialogs.length);
+            existingDeviceDialogs.forEach(dialog => {
+                setTimeout(() => injectNotesIntoDeviceDialog(dialog), 100);
+            });
+        }
+    }
+
     window.entityNotes.observer = observer;
     infoLog('Entity Notes: Observer setup complete');
 }
@@ -438,17 +581,25 @@ function setupDialogObserver() {
 function initialize() {
     debugLog('Entity Notes: Initializing...');
     setupDialogObserver();
-    
+
     // Try to inject into any existing dialogs in shadow DOM
     const homeAssistant = document.querySelector('home-assistant');
     if (homeAssistant?.shadowRoot) {
-        const existingDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
-        debugLog('Entity Notes: Found existing dialogs during init: ' + existingDialogs.length);
-        existingDialogs.forEach(dialog => {
+        const existingEntityDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
+        debugLog('Entity Notes: Found existing entity dialogs during init: ' + existingEntityDialogs.length);
+        existingEntityDialogs.forEach(dialog => {
             setTimeout(() => injectNotesIntoDialog(dialog), 100);
         });
+
+        if (window.entityNotes.enableDeviceNotes) {
+            const existingDeviceDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-dialog');
+            debugLog('Entity Notes: Found existing device dialogs during init: ' + existingDeviceDialogs.length);
+            existingDeviceDialogs.forEach(dialog => {
+                setTimeout(() => injectNotesIntoDeviceDialog(dialog), 100);
+            });
+        }
     }
-    
+
     debugLog('Entity Notes: Initialization complete');
 }
 
