@@ -462,6 +462,13 @@ function injectNotesIntoDeviceDialog(dialog) {
 
     if (!contentArea) {
         debugLog('Entity Notes: No content area found in device dialog');
+        // Debug: log the dialog structure
+        debugLog('Entity Notes: Dialog tag: ' + dialog.tagName);
+        debugLog('Entity Notes: Dialog shadowRoot children: ' + Array.from(dialog.shadowRoot.children).map(c => c.tagName).join(', '));
+
+        // Try to find any element that might be a container
+        const allElements = dialog.shadowRoot.querySelectorAll('*');
+        debugLog('Entity Notes: All shadow root elements: ' + Array.from(allElements).map(e => e.tagName).join(', '));
         return;
     }
 
