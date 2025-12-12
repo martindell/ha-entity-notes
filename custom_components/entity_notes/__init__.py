@@ -86,6 +86,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             stored_data = await store.async_load()
 
+            # Check if we need to manually load v1 data (Store returns None for version mismatches)
+            if stored_data is None:
+                _LOGGER.info("Store returned None - checking for v1 data to migrate")
+                storage_path = Path(hass.config.path(".storage")) / f"{STORAGE_KEY}.json"
+                if storage_path.exists():
+                    try:
+                        with open(storage_path, 'r') as f:
+                            file_data = json.load(f)
+                        if file_data.get("version") == 1:
+                            _LOGGER.info("Found v1 storage file, loading data for migration")
+                            stored_data = file_data.get("data", {})
+                    except Exception as e:
+                        _LOGGER.error("Failed to manually load v1 data: %s", e)
+
             # Migrate from v1 to v2 storage format if needed
             if stored_data and "entity_notes" not in stored_data:
                 # Old format detected: flat dictionary of entity_id: note
