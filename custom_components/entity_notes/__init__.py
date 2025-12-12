@@ -164,7 +164,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.info("Loaded %d entity notes and %d device notes",
                          len(entity_notes_data), len(device_notes_data))
         except Exception as e:
-            _LOGGER.warning("Could not load notes storage, starting fresh: %s", e)
+            _LOGGER.error("=" * 80)
+            _LOGGER.error("EXCEPTION WHILE LOADING NOTES STORAGE")
+            _LOGGER.error("Error type: %s", type(e).__name__)
+            _LOGGER.error("Error message: %s", str(e))
+            import traceback
+            _LOGGER.error("Full traceback:\n%s", traceback.format_exc())
+            _LOGGER.error("=" * 80)
+            _LOGGER.warning("Could not load notes storage, starting fresh")
             entity_notes_data = {}
             device_notes_data = {}
 
