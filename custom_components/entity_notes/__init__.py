@@ -88,16 +88,51 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             # Migrate from v1 to v2 storage format if needed
             if stored_data and "entity_notes" not in stored_data:
-                # Old format: flat dictionary of entity_id: note
-                _LOGGER.info("Migrating storage from v1 to v2 format")
-                entity_notes_data = stored_data or {}
+                # Old format detected: flat dictionary of entity_id: note
+                _LOGGER.warning("=" * 80)
+                _LOGGER.warning("MIGRATING Entity Notes from v1 to v2 format")
+                _LOGGER.warning("Found %d entity notes to migrate", len(stored_data))
+
+                # Create backup before migration
+                try:
+                    backup_path = Path(hass.config.path(".storage")) / "entity_notes.notes.backup_v1"
+                    backup_data = {
+                        "version": 1,
+                        "minor_version": 1,
+                        "key": STORAGE_KEY,
+                        "data": stored_data
+                    }
+                    with open(backup_path, 'w') as f:
+                        json.dump(backup_data, f, indent=2)
+                    _LOGGER.warning("Created backup at: %s", backup_path)
+                except Exception as backup_error:
+                    _LOGGER.error("Failed to create backup before migration: %s", backup_error)
+                    _LOGGER.error("Migration aborted for safety - please backup your data manually")
+                    raise
+
+                # Perform migration
+                entity_notes_data = stored_data.copy()
                 device_notes_data = {}
+
+                # Save migrated data immediately
+                try:
+                    await store.async_save({
+                        "entity_notes": entity_notes_data,
+                        "device_notes": device_notes_data
+                    })
+                    _LOGGER.warning("Successfully migrated %d entity notes to v2 format", len(entity_notes_data))
+                    _LOGGER.warning("Migration complete - backup saved as entity_notes.notes.backup_v1")
+                    _LOGGER.warning("=" * 80)
+                except Exception as save_error:
+                    _LOGGER.error("Failed to save migrated data: %s", save_error)
+                    _LOGGER.error("Your original data is safe in the backup file")
+                    raise
             else:
                 # New format: structured with entity_notes and device_notes
                 entity_notes_data = stored_data.get("entity_notes", {}) if stored_data else {}
                 device_notes_data = stored_data.get("device_notes", {}) if stored_data else {}
 
-            _LOGGER.debug("Loaded %d entity notes and %d device notes",
+            _LOGGER.info("Loaded %d entity notes and %d device notes",
                          len(entity_notes_data), len(device_notes_data))
         except Exception as e:
             _LOGGER.warning("Could not load notes storage, starting fresh: %s", e)
