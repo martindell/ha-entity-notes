@@ -85,20 +85,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Load existing notes
         try:
             stored_data = await store.async_load()
+            _LOGGER.warning("=" * 80)
+            _LOGGER.warning("ENTITY NOTES LOADING DEBUG")
+            _LOGGER.warning("Store.async_load() returned: %s", "None" if stored_data is None else f"dict with {len(stored_data)} keys: {list(stored_data.keys())}")
 
             # Check if we need to manually load v1 data (Store returns None for version mismatches)
             if stored_data is None:
-                _LOGGER.info("Store returned None - checking for v1 data to migrate")
-                storage_path = Path(hass.config.path(".storage")) / f"{STORAGE_KEY}.json"
+                _LOGGER.warning("Store returned None - checking for v1 data to migrate")
+                storage_path = Path(hass.config.path(".storage")) / STORAGE_KEY
+                _LOGGER.warning("Looking for storage file at: %s", storage_path)
+                _LOGGER.warning("File exists: %s", storage_path.exists())
+
                 if storage_path.exists():
                     try:
                         with open(storage_path, 'r') as f:
                             file_data = json.load(f)
-                        if file_data.get("version") == 1:
-                            _LOGGER.info("Found v1 storage file, loading data for migration")
+                        file_version = file_data.get("version")
+                        _LOGGER.warning("Found storage file with version: %s", file_version)
+
+                        if file_version == 1:
+                            _LOGGER.warning("Found v1 storage file, loading data for migration")
                             stored_data = file_data.get("data", {})
+                            _LOGGER.warning("Loaded %d items from v1 file", len(stored_data))
+                        else:
+                            _LOGGER.warning("Storage file version is %s, not v1", file_version)
                     except Exception as e:
                         _LOGGER.error("Failed to manually load v1 data: %s", e)
+                        import traceback
+                        _LOGGER.error("Traceback: %s", traceback.format_exc())
+            _LOGGER.warning("=" * 80)
 
             # Migrate from v1 to v2 storage format if needed
             if stored_data and "entity_notes" not in stored_data:
