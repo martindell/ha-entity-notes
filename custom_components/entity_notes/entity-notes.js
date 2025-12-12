@@ -430,12 +430,6 @@ function injectNotesIntoDeviceDialog(dialog) {
         return;
     }
 
-    // Check if already injected
-    if (dialog.shadowRoot.querySelector('entity-notes-card[type="device"]')) {
-        debugLog('Entity Notes: Device notes already injected');
-        return;
-    }
-
     const deviceId = findDeviceId(dialog);
     if (!deviceId) {
         debugLog('Entity Notes: No device ID found for dialog');
@@ -450,6 +444,14 @@ function injectNotesIntoDeviceDialog(dialog) {
             debugLog('Entity Notes: Found nested HA-DIALOG in DIALOG-DEVICE-REGISTRY-DETAIL');
             targetDialog = nestedDialog;
         }
+    }
+
+    // Check if already injected (check in the target dialog, not the original)
+    const alreadyInjectedInShadow = targetDialog.shadowRoot?.querySelector('entity-notes-card[type="device"]');
+    const alreadyInjectedInDialog = targetDialog.querySelector('entity-notes-card[type="device"]');
+    if (alreadyInjectedInShadow || alreadyInjectedInDialog) {
+        debugLog('Entity Notes: Device notes already injected');
+        return;
     }
 
     // Try multiple selectors to find content area
