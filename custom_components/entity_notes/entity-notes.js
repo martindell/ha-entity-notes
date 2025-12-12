@@ -442,6 +442,16 @@ function injectNotesIntoDeviceDialog(dialog) {
         return;
     }
 
+    // For DIALOG-DEVICE-REGISTRY-DETAIL, we need to look inside the nested HA-DIALOG
+    let targetDialog = dialog;
+    if (dialog.tagName === 'DIALOG-DEVICE-REGISTRY-DETAIL') {
+        const nestedDialog = dialog.shadowRoot.querySelector('ha-dialog');
+        if (nestedDialog) {
+            debugLog('Entity Notes: Found nested HA-DIALOG in DIALOG-DEVICE-REGISTRY-DETAIL');
+            targetDialog = nestedDialog;
+        }
+    }
+
     // Try multiple selectors to find content area
     const selectors = [
         '.content',
@@ -452,23 +462,42 @@ function injectNotesIntoDeviceDialog(dialog) {
     ];
 
     let contentArea = null;
-    for (const selector of selectors) {
-        contentArea = dialog.shadowRoot.querySelector(selector);
-        if (contentArea) {
-            debugLog('Entity Notes: Found device dialog content area with selector: ' + selector);
-            break;
+
+    // First try in the target dialog's shadowRoot
+    if (targetDialog.shadowRoot) {
+        for (const selector of selectors) {
+            contentArea = targetDialog.shadowRoot.querySelector(selector);
+            if (contentArea) {
+                debugLog('Entity Notes: Found device dialog content area with selector: ' + selector);
+                break;
+            }
+        }
+    }
+
+    // If not found in shadowRoot, try in the dialog itself (without shadowRoot)
+    if (!contentArea) {
+        for (const selector of selectors) {
+            contentArea = targetDialog.querySelector(selector);
+            if (contentArea) {
+                debugLog('Entity Notes: Found device dialog content area (no shadow) with selector: ' + selector);
+                break;
+            }
         }
     }
 
     if (!contentArea) {
         debugLog('Entity Notes: No content area found in device dialog');
         // Debug: log the dialog structure
-        debugLog('Entity Notes: Dialog tag: ' + dialog.tagName);
-        debugLog('Entity Notes: Dialog shadowRoot children: ' + Array.from(dialog.shadowRoot.children).map(c => c.tagName).join(', '));
-
-        // Try to find any element that might be a container
-        const allElements = dialog.shadowRoot.querySelectorAll('*');
-        debugLog('Entity Notes: All shadow root elements: ' + Array.from(allElements).map(e => e.tagName).join(', '));
+        debugLog('Entity Notes: Target dialog tag: ' + targetDialog.tagName);
+        if (targetDialog.shadowRoot) {
+            debugLog('Entity Notes: Target dialog shadowRoot children: ' + Array.from(targetDialog.shadowRoot.children).map(c => c.tagName).join(', '));
+            const allElements = targetDialog.shadowRoot.querySelectorAll('*');
+            debugLog('Entity Notes: All target shadowRoot elements: ' + Array.from(allElements).map(e => e.tagName).join(', '));
+        } else {
+            debugLog('Entity Notes: Target dialog has no shadowRoot');
+            const allElements = targetDialog.querySelectorAll('*');
+            debugLog('Entity Notes: All target elements: ' + Array.from(allElements).map(e => e.tagName).join(', '));
+        }
         return;
     }
 
