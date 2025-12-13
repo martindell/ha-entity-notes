@@ -11,7 +11,7 @@ A Home Assistant integration that allows you to add custom notes to any entity u
 
 ## Features
 
-- 🗒️ **Add notes to any entity** - Works with all Home Assistant entities (lights, sensors, switches, etc.)
+- 🗒️ **Add notes to any entity or device** - Works with all Home Assistant entities and devices (lights, sensors, switches, etc.)
 - 💾 **Persistent storage** - Notes are saved permanently and survive restarts
 - 🎨 **Auto-resizing textarea** - Input field automatically adjusts to content size
 - 📱 **Responsive design** - Works on desktop and mobile
