@@ -49,3 +49,47 @@ backup_notes:
 restore_notes:
   name: Restore Notes
   description: Restore notes from a backup JSON file
+
+set_device_note:
+  name: Set Device Note
+  description: Set a note for a device
+  fields:
+    device_id:
+      name: Device ID
+      description: The device to set a note for
+      required: true
+      selector:
+        device:
+    note:
+      name: Note
+      description: The note content
+      required: true
+      selector:
+        text:
+          multiline: true
+
+get_device_note:
+  name: Get Device Note
+  description: Get the note for a device
+  fields:
+    device_id:
+      name: Device ID
+      description: The device to get the note for
+      required: true
+      selector:
+        device:
+
+delete_device_note:
+  name: Delete Device Note
+  description: Delete the note for a device
+  fields:
+    device_id:
+      name: Device ID
+      description: The device to delete the note for
+      required: true
+      selector:
+        device:
+
+list_device_notes:
+  name: List Device Notes
+  description: List all stored device notes
