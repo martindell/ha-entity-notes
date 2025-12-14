@@ -1,11 +1,15 @@
 name: Create Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version_bump:
         description: 'Version bump type'
-        required: true
+        required: false
+        default: 'patch'
         type: choice
         options:
           - patch
@@ -43,7 +47,13 @@ jobs:
           CURRENT="${{ steps.current_version.outputs.version }}"
           IFS='.' read -r major minor patch <<< "$CURRENT"
 
-          case "${{ github.event.inputs.version_bump }}" in
+          # Default to patch if not specified (auto-trigger)
+          VERSION_BUMP="${{ github.event.inputs.version_bump }}"
+          if [ -z "$VERSION_BUMP" ]; then
+            VERSION_BUMP="patch"
+          fi
+
+          case "$VERSION_BUMP" in
             major)
               major=$((major + 1))
               minor=0
