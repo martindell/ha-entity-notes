@@ -83,8 +83,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         if storage_path.exists():
             try:
-                with open(storage_path, 'r') as f:
-                    file_data = json.load(f)
+                # Read file asynchronously using executor
+                def _read_storage():
+                    with open(storage_path, 'r') as f:
+                        return json.load(f)
+
+                file_data = await hass.async_add_executor_job(_read_storage)
                 file_version = file_data.get("version", 1)
 
                 if file_version == 1:
@@ -95,11 +99,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     old_data = file_data.get("data", {})
                     _LOGGER.warning("Found %d entity notes to migrate", len(old_data))
 
-                    # Create backup
+                    # Create backup asynchronously
                     try:
                         backup_path = Path(hass.config.path(".storage")) / "entity_notes.notes.backup_v1"
-                        with open(backup_path, 'w') as f:
-                            json.dump(file_data, f, indent=2)
+
+                        def _write_backup():
+                            with open(backup_path, 'w') as f:
+                                json.dump(file_data, f, indent=2)
+
+                        await hass.async_add_executor_job(_write_backup)
                         _LOGGER.warning("Created backup at: %s", backup_path)
                     except Exception as backup_error:
                         _LOGGER.error("Failed to create backup: %s", backup_error)
@@ -115,9 +123,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         }
                     }
 
-                    # Write migrated file
-                    with open(storage_path, 'w') as f:
-                        json.dump(migrated_data, f, indent=2)
+                    # Write migrated file asynchronously
+                    def _write_migrated():
+                        with open(storage_path, 'w') as f:
+                            json.dump(migrated_data, f, indent=2)
+
+                    await hass.async_add_executor_job(_write_migrated)
 
                     _LOGGER.warning("Successfully migrated %d entity notes to v2", len(old_data))
                     _LOGGER.warning("=" * 80)
