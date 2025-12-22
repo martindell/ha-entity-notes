@@ -217,20 +217,16 @@ class EntityNotesCard extends HTMLElement {
 
         viewDiv.addEventListener('click', (event) => {
             // Don't switch to edit mode if clicking on a link or inside a link
-            console.log('Entity Notes: View clicked, target:', event.target.tagName, event.target);
-
             // Check if the clicked element or any parent is a link
             let element = event.target;
             while (element && element !== viewDiv) {
                 if (element.tagName === 'A') {
-                    console.log('Entity Notes: Link clicked, preventing edit mode');
                     event.stopPropagation();
                     return;
                 }
                 element = element.parentElement;
             }
 
-            console.log('Entity Notes: Switching to edit mode');
             this.switchToEditMode();
         });
 
