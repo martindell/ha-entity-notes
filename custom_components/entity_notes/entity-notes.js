@@ -36,6 +36,7 @@ class EntityNotesCard extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
         this.hasExistingNote = false;
+        this.isEditing = false;
         debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
@@ -55,6 +56,35 @@ class EntityNotesCard extends HTMLElement {
                     border: none;
                     border-radius: 4px;
                     background: transparent;
+                }
+                .entity-notes-view {
+                    width: 100%;
+                    min-height: 36px;
+                    padding: 6px 8px;
+                    border: 1px solid var(--divider-color, #e0e0e0);
+                    border-radius: 4px;
+                    background: var(--primary-background-color, white);
+                    color: var(--primary-text-color, black);
+                    font-family: inherit;
+                    font-size: 14px;
+                    line-height: 1.4;
+                    box-sizing: border-box;
+                    cursor: text;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                }
+                .entity-notes-view:hover {
+                    border-color: var(--primary-color, #03a9f4);
+                }
+                .entity-notes-view a {
+                    color: var(--primary-color, #03a9f4);
+                    text-decoration: underline;
+                }
+                .entity-notes-view a:hover {
+                    color: var(--accent-color, #0288d1);
+                }
+                .entity-notes-view.hidden {
+                    display: none;
                 }
                 .entity-notes-textarea {
                     width: 100%;
@@ -77,6 +107,9 @@ class EntityNotesCard extends HTMLElement {
                 .entity-notes-textarea:focus {
                     border-color: var(--primary-color, #03a9f4);
                     box-shadow: 0 0 0 1px var(--primary-color, #03a9f4);
+                }
+                .entity-notes-textarea.hidden {
+                    display: none;
                 }
                 .entity-notes-actions {
                     display: flex;
@@ -119,8 +152,9 @@ class EntityNotesCard extends HTMLElement {
                 }
             </style>
             <div class="entity-notes-container">
-                <textarea 
-                    class="entity-notes-textarea" 
+                <div class="entity-notes-view"></div>
+                <textarea
+                    class="entity-notes-textarea"
                     placeholder="Notes"
                     maxlength="${maxLength}"
                     rows="1"
@@ -134,8 +168,29 @@ class EntityNotesCard extends HTMLElement {
         `;
     }
 
+    convertLinksToClickable(text) {
+        // Escape HTML to prevent XSS
+        const escapeHtml = (str) => {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        };
+
+        // Regular expression to match URLs
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+        // Escape the text first
+        const escapedText = escapeHtml(text);
+
+        // Replace URLs with clickable links
+        return escapedText.replace(urlRegex, (url) => {
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        });
+    }
+
     setupEventListeners() {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
         const saveBtn = this.shadowRoot.querySelector('.entity-notes-save');
         const deleteBtn = this.shadowRoot.querySelector('.entity-notes-delete');
@@ -148,6 +203,20 @@ class EntityNotesCard extends HTMLElement {
 
         textarea.addEventListener('focus', () => {
             this.autoResize();
+        });
+
+        textarea.addEventListener('blur', () => {
+            // When textarea loses focus, switch back to view mode if there's content
+            // Add a small delay to allow button clicks to register
+            setTimeout(() => {
+                if (!this.shadowRoot.activeElement) {
+                    this.switchToViewMode();
+                }
+            }, 200);
+        });
+
+        viewDiv.addEventListener('click', () => {
+            this.switchToEditMode();
         });
 
         saveBtn.addEventListener('click', () => this.saveNote());
@@ -196,6 +265,49 @@ class EntityNotesCard extends HTMLElement {
         textarea.style.height = newHeight + 'px';
     }
 
+    switchToEditMode() {
+        this.isEditing = true;
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+        const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
+
+        viewDiv.classList.add('hidden');
+        textarea.classList.remove('hidden');
+        charCount.style.display = 'block';
+
+        // Focus the textarea
+        setTimeout(() => {
+            textarea.focus();
+            this.autoResize();
+        }, 10);
+
+        debugLog('Entity Notes: Switched to edit mode');
+    }
+
+    switchToViewMode() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+        const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
+        const noteText = textarea.value.trim();
+
+        // Only switch to view mode if there's content and we're not actively editing
+        if (noteText.length > 0 && this.isEditing) {
+            this.isEditing = false;
+
+            // Convert links to clickable format
+            viewDiv.innerHTML = this.convertLinksToClickable(noteText);
+
+            viewDiv.classList.remove('hidden');
+            textarea.classList.add('hidden');
+            charCount.style.display = 'none';
+
+            debugLog('Entity Notes: Switched to view mode');
+        } else if (noteText.length === 0) {
+            // If empty, stay in edit mode (or show placeholder)
+            this.isEditing = false;
+        }
+    }
+
     async loadNote() {
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
@@ -209,6 +321,7 @@ class EntityNotesCard extends HTMLElement {
             const data = await response.json();
 
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+            const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
             const noteText = data.note || '';
             textarea.value = noteText;
 
@@ -218,6 +331,19 @@ class EntityNotesCard extends HTMLElement {
             this.updateCharCount();
             this.updateButtonVisibility();
             setTimeout(() => this.autoResize(), 10);
+
+            // Show in view mode if there's a note, edit mode if empty
+            if (noteText.length > 0) {
+                viewDiv.innerHTML = this.convertLinksToClickable(noteText);
+                viewDiv.classList.remove('hidden');
+                textarea.classList.add('hidden');
+                this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'none';
+                this.isEditing = false;
+            } else {
+                viewDiv.classList.add('hidden');
+                textarea.classList.remove('hidden');
+                this.isEditing = false;
+            }
 
             debugLog(`Entity Notes: Note loaded for ${type}, hasExistingNote: ${this.hasExistingNote}`);
 
@@ -246,6 +372,13 @@ class EntityNotesCard extends HTMLElement {
                 // Update the existing note status
                 this.hasExistingNote = note.length > 0;
                 this.updateButtonVisibility();
+
+                // Switch to view mode after saving if there's content
+                if (note.length > 0) {
+                    this.isEditing = true; // Set to true so switchToViewMode will work
+                    this.switchToViewMode();
+                }
+
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
             } else {
                 console.error(`Entity Notes: Save failed for ${type}`);
@@ -269,8 +402,18 @@ class EntityNotesCard extends HTMLElement {
 
             if (response.ok) {
                 const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+                const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+
                 textarea.value = '';
+                viewDiv.innerHTML = '';
                 this.hasExistingNote = false;
+
+                // Show textarea in edit mode after deletion
+                viewDiv.classList.add('hidden');
+                textarea.classList.remove('hidden');
+                this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'block';
+                this.isEditing = false;
+
                 this.updateCharCount();
                 this.updateButtonVisibility();
                 this.autoResize();
