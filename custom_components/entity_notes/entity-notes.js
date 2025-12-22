@@ -215,7 +215,11 @@ class EntityNotesCard extends HTMLElement {
             }, 200);
         });
 
-        viewDiv.addEventListener('click', () => {
+        viewDiv.addEventListener('click', (event) => {
+            // Don't switch to edit mode if clicking on a link
+            if (event.target.tagName === 'A') {
+                return;
+            }
             this.switchToEditMode();
         });
 
