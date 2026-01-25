@@ -6,6 +6,7 @@ window.entityNotes = {
     debug: {{DEBUG_LOGGING}},
     maxNoteLength: {{MAX_NOTE_LENGTH}},
     hideButtonsWhenEmpty: {{HIDE_BUTTONS_WHEN_EMPTY}},
+    hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
 
     // Convenience methods for users
@@ -202,7 +203,8 @@ class EntityNotesCard extends HTMLElement {
         });
 
         textarea.addEventListener('focus', () => {
-            this.autoResize();
+        this.autoResize();
+        this.updateButtonVisibility();
         });
 
         textarea.addEventListener('blur', () => {
@@ -210,8 +212,9 @@ class EntityNotesCard extends HTMLElement {
             // Add a small delay to allow button clicks to register
             setTimeout(() => {
                 if (!this.shadowRoot.activeElement) {
-                    this.switchToViewMode();
+                this.switchToViewMode();
                 }
+                this.updateButtonVisibility();
             }, 200);
         });
 
@@ -235,18 +238,35 @@ class EntityNotesCard extends HTMLElement {
     }
 
     updateButtonVisibility() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const actions = this.shadowRoot.querySelector('.entity-notes-actions');
+        const currentText = textarea.value.trim();
+
+        // NEW LOGIC: Check if hide-until-focus mode is enabled
+        if (window.entityNotes.hideButtonsUntilFocus) {
+            // In hide-until-focus mode, only show buttons when textarea has focus
+            const hasFocus = document.activeElement === textarea ||
+                            this.shadowRoot.activeElement === textarea;
+
+            if (hasFocus) {
+                actions.classList.remove('hidden');
+                debugLog('Entity Notes: Showing buttons (textarea has focus)');
+            } else {
+                actions.classList.add('hidden');
+                debugLog('Entity Notes: Hiding buttons (textarea lost focus)');
+            }
+            return; // Exit early, don't apply other visibility logic
+        }
+
+        // EXISTING LOGIC: Original hide-when-empty behavior
         if (!window.entityNotes.hideButtonsWhenEmpty) {
             debugLog('Entity Notes: Always showing buttons (hideButtonsWhenEmpty is false)');
             return;
         }
 
-        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
-        const actions = this.shadowRoot.querySelector('.entity-notes-actions');
-        const currentText = textarea.value.trim();
-        
         // Show buttons if there's text OR if there's an existing note
         const shouldShowButtons = currentText.length > 0 || this.hasExistingNote;
-        
+
         if (shouldShowButtons) {
             actions.classList.remove('hidden');
             debugLog('Entity Notes: Showing buttons (has text or existing note)');
@@ -261,9 +281,9 @@ class EntityNotesCard extends HTMLElement {
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
         const count = textarea.value.length;
         const maxLength = window.entityNotes.maxNoteLength;
-        
+
         charCount.textContent = `${count}/${maxLength}`;
-        
+
         charCount.classList.remove('warning', 'error');
         if (count > maxLength * 0.9) charCount.classList.add('warning');
         if (count >= maxLength) charCount.classList.add('error');
@@ -447,7 +467,7 @@ window.entityNotes.EntityNotesCard = EntityNotesCard;
 
 function findEntityId(dialog) {
     debugLog('Entity Notes: Finding entity ID for dialog');
-    
+
     // Try multiple methods to get entity ID
     const methods = [
         () => dialog.stateObj?.entity_id,
@@ -461,7 +481,7 @@ function findEntityId(dialog) {
             return stateObj?.entity_id;
         }
     ];
-    
+
     for (const method of methods) {
         try {
             const entityId = method();
@@ -473,31 +493,31 @@ function findEntityId(dialog) {
             // Continue to next method
         }
     }
-    
+
     debugLog('Entity Notes: No entity ID found');
     return null;
 }
 
 function injectNotesIntoDialog(dialog) {
     debugLog('Entity Notes: Attempting to inject notes into dialog');
-    
+
     if (!dialog || !dialog.shadowRoot) {
         debugLog('Entity Notes: No dialog or shadowRoot found');
         return;
     }
-    
+
     // Check if already injected
     if (dialog.shadowRoot.querySelector('entity-notes-card')) {
         debugLog('Entity Notes: Notes already injected');
         return;
     }
-    
+
     const entityId = findEntityId(dialog);
     if (!entityId) {
         debugLog('Entity Notes: No entity ID found for dialog');
         return;
     }
-    
+
     // Try multiple selectors to find content area
     const selectors = [
         '.content',
@@ -506,7 +526,7 @@ function injectNotesIntoDialog(dialog) {
         '.dialog-content',
         'ha-dialog-content'
     ];
-    
+
     let contentArea = null;
     for (const selector of selectors) {
         contentArea = dialog.shadowRoot.querySelector(selector);
@@ -515,19 +535,19 @@ function injectNotesIntoDialog(dialog) {
             break;
         }
     }
-    
+
     if (!contentArea) {
         debugLog('Entity Notes: No content area found');
         return;
     }
-    
+
     // Create and inject notes card
     const notesCard = document.createElement('entity-notes-card');
     notesCard.setAttribute('entity-id', entityId);
     contentArea.appendChild(notesCard);
-    
+
     debugLog('Entity Notes: Notes card injected for entity: ' + entityId);
-    
+
     // Load the note after a short delay
     setTimeout(() => {
         notesCard.loadNote();
@@ -680,7 +700,7 @@ function setupDialogObserver() {
         setTimeout(setupDialogObserver, 1000);
         return;
     }
-    
+
     // Observer specifically for Home Assistant shadow DOM
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -751,14 +771,14 @@ function setupDialogObserver() {
             });
         });
     });
-    
+
     // Observe the Home Assistant shadow root (where dialogs are actually created)
     debugLog('Entity Notes: Observing home-assistant shadow root');
-    observer.observe(homeAssistant.shadowRoot, { 
-        childList: true, 
-        subtree: true 
+    observer.observe(homeAssistant.shadowRoot, {
+        childList: true,
+        subtree: true
     });
-    
+
     // Also check for existing dialogs in shadow root
     const existingEntityDialogs = homeAssistant.shadowRoot.querySelectorAll('ha-more-info-dialog');
     if (existingEntityDialogs.length > 0) {
@@ -834,14 +854,14 @@ function initializeWithErrorHandling() {
     try {
         debugLog('Entity Notes: Starting initialization...');
         debugLog('Entity Notes: DOM ready state: ' + document.readyState);
-        
+
         initialize();
-        
+
         infoLog('Entity Notes: Initialization completed successfully');
     } catch (error) {
         console.error('Entity Notes: Initialization failed:', error);
         console.error('Entity Notes: Error stack:', error.stack);
-        
+
         // Try fallback initialization after delay
         setTimeout(() => {
             try {

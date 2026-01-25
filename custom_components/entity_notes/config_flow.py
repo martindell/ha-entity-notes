@@ -16,11 +16,13 @@ from .const import (
     CONF_MAX_NOTE_LENGTH,
     CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
+    CONF_HIDE_BUTTONS_UNTIL_FOCUS,
     CONF_DELETE_NOTES_WITH_ENTITY,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
+    DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS,
     DEFAULT_DELETE_NOTES_WITH_ENTITY,
 )
 
@@ -37,13 +39,13 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
         errors = {}
-        
+
         # Check if already configured and handle automatic upgrade
         existing_entries = self._async_current_entries()
         if existing_entries and user_input is None:
             # Get current options from existing entry to pre-populate form
             current_options = existing_entries[0].options if existing_entries[0].options else {}
-            
+
             # Show form with upgrade notice for first-time display
             return self.async_show_form(
                 step_id="user",
@@ -65,13 +67,17 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
                     ): bool,
                     vol.Optional(
+                        CONF_HIDE_BUTTONS_UNTIL_FOCUS,
+                        default=current_options.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS)
+                    ): bool,
+                    vol.Optional(
                         CONF_DELETE_NOTES_WITH_ENTITY,
                         default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
                     ): bool,
                 }),
                 errors=errors,
                 description_placeholders={
-                    "description": "⚠️ Entity Notes is already installed and will be automatically upgraded with your new settings. Your existing notes and data will be preserved during the upgrade process."
+                    "description": "Entity Notes is already installed and will be automatically upgraded with your new settings. Your existing notes and data will be preserved during the upgrade process."
                 },
             )
 
@@ -80,20 +86,20 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             max_length = user_input.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
             if max_length < 50 or max_length > 2000:
                 errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
-            
+
             if not errors:
                 # Handle automatic upgrade of existing installation
                 if existing_entries:
                     try:
                         _LOGGER.info("Automatically upgrading existing Entity Notes installation")
-                        
+
                         # Remove existing entries one by one
                         for entry in existing_entries:
                             _LOGGER.debug(f"Removing existing entry: {entry.entry_id} (title: {entry.title})")
                             await self.hass.config_entries.async_remove(entry.entry_id)
-                        
+
                         _LOGGER.info("Successfully removed existing Entity Notes entries")
-                        
+
                     except Exception as ex:
                         _LOGGER.error(f"Error during Entity Notes upgrade: {ex}")
                         errors["base"] = "upgrade_failed"
@@ -104,17 +110,18 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
                                 vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
                                 vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
+                                vol.Optional(CONF_HIDE_BUTTONS_UNTIL_FOCUS, default=DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS): bool,
                                 vol.Optional(CONF_DELETE_NOTES_WITH_ENTITY, default=DEFAULT_DELETE_NOTES_WITH_ENTITY): bool,
                             }),
                             errors=errors,
                             description_placeholders={
-                                "description": "❌ Error during upgrade. Please try again or manually remove the existing Entity Notes integration first from Settings > Devices & Services."
+                                "description": "Error during upgrade. Please try again or manually remove the existing Entity Notes integration first from Settings > Devices & Services."
                             },
                         )
 
                 # Create new entry (either fresh install or after successful upgrade)
                 await self.async_set_unique_id(DOMAIN)
-                
+
                 # Create the new entry with user's settings
                 entry_result = self.async_create_entry(
                     title="Entity Notes",
@@ -124,15 +131,16 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MAX_NOTE_LENGTH: max_length,
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
+                        CONF_HIDE_BUTTONS_UNTIL_FOCUS: user_input.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS),
                         CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
                     },
                 )
-                
+
                 if existing_entries:
                     _LOGGER.info("Entity Notes upgrade completed successfully")
                 else:
                     _LOGGER.info("Entity Notes installation completed successfully")
-                
+
                 return entry_result
 
         # Show configuration form for fresh install
@@ -143,6 +151,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_MAX_NOTE_LENGTH, default=DEFAULT_MAX_NOTE_LENGTH): vol.All(int, vol.Range(min=50, max=2000)),
                 vol.Optional(CONF_AUTO_BACKUP, default=DEFAULT_AUTO_BACKUP): bool,
                 vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
+                vol.Optional(CONF_HIDE_BUTTONS_UNTIL_FOCUS, default=DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS): bool,
                 vol.Optional(CONF_DELETE_NOTES_WITH_ENTITY, default=DEFAULT_DELETE_NOTES_WITH_ENTITY): bool,
             }),
             errors=errors,
@@ -161,13 +170,13 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle reconfiguration of the integration."""
         entry = self._get_reconfigure_entry()
         errors = {}
-        
+
         if user_input is not None:
             # Validate input
             max_length = user_input.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
             if max_length < 50 or max_length > 2000:
                 errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
-            
+
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry,
@@ -177,6 +186,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MAX_NOTE_LENGTH: max_length,
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
+                        CONF_HIDE_BUTTONS_UNTIL_FOCUS: user_input.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS),
                         CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
                     },
                     reason="reconfigure_successful",
@@ -201,6 +211,10 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_HIDE_BUTTONS_WHEN_EMPTY,
                     default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                ): bool,
+                vol.Optional(
+                    CONF_HIDE_BUTTONS_UNTIL_FOCUS,
+                    default=current_options.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS)
                 ): bool,
                 vol.Optional(
                     CONF_DELETE_NOTES_WITH_ENTITY,
@@ -230,13 +244,13 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options."""
         errors = {}
-        
+
         if user_input is not None:
             # Validate input
             max_length = user_input.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
             if max_length < 50 or max_length > 2000:
                 errors[CONF_MAX_NOTE_LENGTH] = "invalid_max_length"
-            
+
             if not errors:
                 # Create the options entry first
                 result = self.async_create_entry(
@@ -246,13 +260,14 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                         CONF_MAX_NOTE_LENGTH: max_length,
                         CONF_AUTO_BACKUP: user_input.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP),
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
+                        CONF_HIDE_BUTTONS_UNTIL_FOCUS: user_input.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS),
                         CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
                     }
                 )
-                
+
                 # Automatically reload the integration to apply the new settings
                 await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-                
+
                 return result
 
         current_options = self.config_entry.options or {}
@@ -274,6 +289,10 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_HIDE_BUTTONS_WHEN_EMPTY,
                     default=current_options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
+                ): bool,
+                vol.Optional(
+                    CONF_HIDE_BUTTONS_UNTIL_FOCUS,
+                    default=current_options.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS)
                 ): bool,
                 vol.Optional(
                     CONF_DELETE_NOTES_WITH_ENTITY,
