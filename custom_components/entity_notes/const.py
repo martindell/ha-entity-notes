@@ -1,6 +1,7 @@
 """Constants for Entity Notes component."""
 
 DOMAIN = "entity_notes"
+
 STORAGE_VERSION = 2
 STORAGE_KEY = "entity_notes.notes"
 MAX_NOTE_LENGTH = 200
@@ -10,6 +11,7 @@ CONF_DEBUG_LOGGING = "debug_logging"
 CONF_MAX_NOTE_LENGTH = "max_note_length"
 CONF_AUTO_BACKUP = "auto_backup"
 CONF_HIDE_BUTTONS_WHEN_EMPTY = "hide_buttons_when_empty"
+CONF_HIDE_BUTTONS_UNTIL_FOCUS = "hide_buttons_until_focus"  # NEW
 CONF_DELETE_NOTES_WITH_ENTITY = "delete_notes_with_entity"
 CONF_DELETE_NOTES_WITH_DEVICE = "delete_notes_with_device"
 CONF_ENABLE_DEVICE_NOTES = "enable_device_notes"
@@ -37,6 +39,7 @@ DEFAULT_DEBUG_LOGGING = False
 DEFAULT_MAX_NOTE_LENGTH = 200
 DEFAULT_AUTO_BACKUP = True
 DEFAULT_HIDE_BUTTONS_WHEN_EMPTY = True
+DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS = False  # NEW - maintain backward compatibility
 DEFAULT_DELETE_NOTES_WITH_ENTITY = True
 DEFAULT_DELETE_NOTES_WITH_DEVICE = True
 DEFAULT_ENABLE_DEVICE_NOTES = True
