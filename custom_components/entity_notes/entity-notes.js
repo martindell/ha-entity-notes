@@ -498,6 +498,54 @@ function findEntityId(dialog) {
     return null;
 }
 
+function findDialogContentArea(dialog) {
+    if (!dialog?.shadowRoot) return null;
+
+    // These selectors identify the actual scrollable content body of a dialog.
+    // Ordered from most-specific (new HA/WebAwesome) to legacy (MDC).
+    // [slot="content"] is intentionally excluded — it matches wrapper elements
+    // (e.g. ha-dialog itself), not the inner content area.
+    const contentSelectors = [
+        '.dialog__body',      // WebAwesome wa-dialog (HA 2026.4+)
+        '[part="body"]',      // WebAwesome CSS parts
+        '.body',              // ha-dialog body class
+        '.body.ha-scrollbar',
+        '.content-wrapper',
+        '.content',           // Legacy HA
+        '.mdc-dialog__content', // Legacy MDC
+        '.dialog-content',
+        'ha-dialog-content',
+    ];
+
+    // Recursively walk shadow roots up to maxDepth levels deep.
+    // Does NOT descend into children of a matching element.
+    function searchShadow(shadowRoot, depth) {
+        if (!shadowRoot || depth <= 0) return null;
+
+        for (const sel of contentSelectors) {
+            try {
+                const el = shadowRoot.querySelector(sel);
+                if (el) {
+                    debugLog('Entity Notes: Found content area (depth ' + (6 - depth) + ') with selector: ' + sel);
+                    return el;
+                }
+            } catch (e) {}
+        }
+
+        // Recurse into shadow roots of direct and nested children
+        const children = shadowRoot.querySelectorAll('*');
+        for (const child of children) {
+            if (child.shadowRoot) {
+                const result = searchShadow(child.shadowRoot, depth - 1);
+                if (result) return result;
+            }
+        }
+        return null;
+    }
+
+    return searchShadow(dialog.shadowRoot, 6);
+}
+
 function injectNotesIntoDialog(dialog) {
     debugLog('Entity Notes: Attempting to inject notes into dialog');
 
@@ -506,45 +554,35 @@ function injectNotesIntoDialog(dialog) {
         return;
     }
 
-    // Check if already injected
-    if (dialog.shadowRoot.querySelector('entity-notes-card')) {
-        debugLog('Entity Notes: Notes already injected');
-        return;
-    }
-
+    // Check if already injected (use a property flag since card may be in nested shadow root)
     const entityId = findEntityId(dialog);
     if (!entityId) {
         debugLog('Entity Notes: No entity ID found for dialog');
         return;
     }
 
-    // Try multiple selectors to find content area
-    const selectors = [
-        '.content',
-        '.mdc-dialog__content',
-        '[slot="content"]',
-        '.dialog-content',
-        'ha-dialog-content'
-    ];
-
-    let contentArea = null;
-    for (const selector of selectors) {
-        contentArea = dialog.shadowRoot.querySelector(selector);
-        if (contentArea) {
-            debugLog('Entity Notes: Found content area with selector: ' + selector);
-            break;
-        }
+    // Check if already injected for this specific entity
+    if (dialog._entityNotesInjectedFor === entityId) {
+        debugLog('Entity Notes: Notes already injected for entity: ' + entityId);
+        return;
     }
+
+    const contentArea = findDialogContentArea(dialog);
 
     if (!contentArea) {
         debugLog('Entity Notes: No content area found');
         return;
     }
 
+    // Remove any stale card from a previous entity (dialog element is reused)
+    const existing = contentArea.querySelector('entity-notes-card');
+    if (existing) existing.remove();
+
     // Create and inject notes card
     const notesCard = document.createElement('entity-notes-card');
     notesCard.setAttribute('entity-id', entityId);
     contentArea.appendChild(notesCard);
+    dialog._entityNotesInjectedFor = entityId;
 
     debugLog('Entity Notes: Notes card injected for entity: ' + entityId);
 
@@ -620,59 +658,33 @@ function injectNotesIntoDeviceDialog(dialog) {
         }
     }
 
-    // Check if already injected (check in the target dialog, not the original)
-    const alreadyInjectedInShadow = targetDialog.shadowRoot?.querySelector('entity-notes-card[type="device"]');
-    const alreadyInjectedInDialog = targetDialog.querySelector('entity-notes-card[type="device"]');
-    if (alreadyInjectedInShadow || alreadyInjectedInDialog) {
+    // Check if already injected (use property flag since card may be in nested shadow root)
+    if (dialog._entityNotesDeviceInjected) {
         debugLog('Entity Notes: Device notes already injected');
         return;
     }
 
-    // Try multiple selectors to find content area
-    const selectors = [
-        '.content',
-        '.mdc-dialog__content',
-        '[slot="content"]',
-        '.dialog-content',
-        'ha-dialog-content'
-    ];
-
-    let contentArea = null;
-
-    // First try in the target dialog's shadowRoot
-    if (targetDialog.shadowRoot) {
-        for (const selector of selectors) {
-            contentArea = targetDialog.shadowRoot.querySelector(selector);
-            if (contentArea) {
-                debugLog('Entity Notes: Found device dialog content area with selector: ' + selector);
-                break;
+    const contentArea = findDialogContentArea(targetDialog) ||
+        // Fallback: also try the light DOM of targetDialog (no shadow root)
+        (() => {
+            const selectors = ['.content', '.mdc-dialog__content', '[slot="content"]', '.dialog-content', 'ha-dialog-content', '.body'];
+            for (const s of selectors) {
+                const el = targetDialog.querySelector?.(s);
+                if (el) {
+                    debugLog('Entity Notes: Found device dialog content area (light DOM) with selector: ' + s);
+                    return el;
+                }
             }
-        }
-    }
-
-    // If not found in shadowRoot, try in the dialog itself (without shadowRoot)
-    if (!contentArea) {
-        for (const selector of selectors) {
-            contentArea = targetDialog.querySelector(selector);
-            if (contentArea) {
-                debugLog('Entity Notes: Found device dialog content area (no shadow) with selector: ' + selector);
-                break;
-            }
-        }
-    }
+            return null;
+        })();
 
     if (!contentArea) {
         debugLog('Entity Notes: No content area found in device dialog');
-        // Debug: log the dialog structure
-        debugLog('Entity Notes: Target dialog tag: ' + targetDialog.tagName);
-        if (targetDialog.shadowRoot) {
-            debugLog('Entity Notes: Target dialog shadowRoot children: ' + Array.from(targetDialog.shadowRoot.children).map(c => c.tagName).join(', '));
-            const allElements = targetDialog.shadowRoot.querySelectorAll('*');
-            debugLog('Entity Notes: All target shadowRoot elements: ' + Array.from(allElements).map(e => e.tagName).join(', '));
-        } else {
-            debugLog('Entity Notes: Target dialog has no shadowRoot');
-            const allElements = targetDialog.querySelectorAll('*');
-            debugLog('Entity Notes: All target elements: ' + Array.from(allElements).map(e => e.tagName).join(', '));
+        if (window.entityNotes.debug) {
+            debugLog('Entity Notes: Target dialog tag: ' + targetDialog.tagName);
+            if (targetDialog.shadowRoot) {
+                debugLog('Entity Notes: Target dialog shadowRoot children: ' + Array.from(targetDialog.shadowRoot.children).map(c => c.tagName).join(', '));
+            }
         }
         return;
     }
@@ -682,6 +694,7 @@ function injectNotesIntoDeviceDialog(dialog) {
     notesCard.setAttribute('device-id', deviceId);
     notesCard.setAttribute('type', 'device');
     contentArea.appendChild(notesCard);
+    dialog._entityNotesDeviceInjected = true;
 
     debugLog('Entity Notes: Notes card injected for device: ' + deviceId);
 
@@ -771,6 +784,22 @@ function setupDialogObserver() {
             });
         });
     });
+
+    // HA 2026.4+: ha-more-info-dialog is a persistent element that is never
+    // removed from the DOM. HA fires 'hass-more-info' each time a dialog opens,
+    // so we listen for that instead of relying on MutationObserver node additions.
+    window.addEventListener('hass-more-info', (event) => {
+        debugLog('Entity Notes: hass-more-info event detected for entity: ' + event.detail?.entityId);
+        const ha = document.querySelector('home-assistant');
+        const dialog = ha?.shadowRoot?.querySelector('ha-more-info-dialog');
+        if (!dialog) return;
+        // Clear the per-entity flag so injection runs fresh for the new entity
+        delete dialog._entityNotesInjectedFor;
+        [200, 500, 1000, 2000].forEach(delay => {
+            setTimeout(() => injectNotesIntoDialog(dialog), delay);
+        });
+    }, true);
+    infoLog('Entity Notes: hass-more-info listener registered');
 
     // Observe the Home Assistant shadow root (where dialogs are actually created)
     debugLog('Entity Notes: Observing home-assistant shadow root');
