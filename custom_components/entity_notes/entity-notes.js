@@ -38,6 +38,8 @@ class EntityNotesCard extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this.hasExistingNote = false;
         this.isEditing = false;
+        this.initialState = null;
+        this.redoState = null;
         debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
@@ -122,7 +124,7 @@ class EntityNotesCard extends HTMLElement {
                     font-size: 14px;
                     line-height: 1.4;
                     resize: none;
-                    overflow: hidden;
+                    overflow: auto;
                     box-sizing: border-box;
                     transition: height 0.1s ease;
                     outline: none;
@@ -173,9 +175,59 @@ class EntityNotesCard extends HTMLElement {
                 .entity-notes-char-count.error {
                     color: var(--error-color, #f44336);
                 }
+                .entity-notes-markdown-toolbar {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 4px;
+                    margin-bottom: 4px;
+                    flex-wrap: wrap;
+                }
+                .entity-notes-markdown-toolbar.hidden {
+                    display: none;
+                }
+                .entity-notes-md-button {
+                    background: var(--secondary-background-color, #f5f5f5);
+                    color: var(--primary-text-color, black);
+                    border: 1px solid var(--divider-color, #e0e0e0);
+                    border-radius: 4px;
+                    padding: 2px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    width: 28px;
+                    height: 28px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    line-height: 1;
+                }
+                .entity-notes-md-button:hover {
+                    background: var(--divider-color, #e0e0e0);
+                }
+                .entity-notes-md-button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .entity-notes-md-button b {
+                    font-size: 14px;
+                }
+                .entity-notes-md-button i {
+                    font-size: 14px;
+                }
             </style>
             <div class="entity-notes-container">
                 <div class="entity-notes-view"></div>
+                <div class="entity-notes-markdown-toolbar hidden">
+                    <button class="entity-notes-md-button" data-action="undo" title="Rückgängig (Strg+Z)" disabled>↶</button>
+                    <button class="entity-notes-md-button" data-action="redo" title="Wiederholen (Strg+Y)" disabled>↷</button>
+                    <div style="width: 8px;"></div>
+                    <button class="entity-notes-md-button" data-format="h1" title="Überschrift 1">H1</button>
+                    <button class="entity-notes-md-button" data-format="h2" title="Überschrift 2">H2</button>
+                    <button class="entity-notes-md-button" data-format="bold" title="Fett"><b>B</b></button>
+                    <button class="entity-notes-md-button" data-format="italic" title="Kursiv"><i>K</i></button>
+                    <button class="entity-notes-md-button" data-format="ul" title="Aufzählung">&bull;</button>
+                    <button class="entity-notes-md-button" data-format="ol" title="Nummerierte Liste">1.</button>
+                    <button class="entity-notes-md-button" data-format="hr" title="Trennlinie">&mdash;</button>
+                </div>
                 <textarea
                     class="entity-notes-textarea"
                     placeholder="Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider)"
@@ -282,17 +334,189 @@ class EntityNotesCard extends HTMLElement {
         return parts.join('');
     }
 
+    updateUndoRedoButtons() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const undoBtn = this.shadowRoot.querySelector('[data-action="undo"]');
+        const redoBtn = this.shadowRoot.querySelector('[data-action="redo"]');
+
+        if (undoBtn) undoBtn.disabled = textarea.value === this.initialState;
+        if (redoBtn) redoBtn.disabled = this.redoState === null;
+    }
+
+    undo() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        if (textarea.value !== this.initialState) {
+            this.redoState = textarea.value; // Save current state for redo
+            textarea.value = this.initialState;
+            this.updateUndoRedoButtons();
+            this.triggerInputEvent(textarea);
+            debugLog('Entity Notes: Performed undo.');
+        }
+    }
+
+    redo() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        if (this.redoState !== null) {
+            textarea.value = this.redoState;
+            this.redoState = null;
+            this.updateUndoRedoButtons();
+            this.triggerInputEvent(textarea);
+            debugLog('Entity Notes: Performed redo.');
+        }
+    }
+
+    triggerInputEvent(element) {
+        // Trigger input event to update char count, resize, etc.
+        element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    }
+    formatText(format) {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+
+        let newCursorPos = -1;
+
+        switch (format) {
+            case 'h1':
+            case 'h2':
+            case 'ul':
+            case 'ol': {
+                const lineStartPos = textarea.value.lastIndexOf('\n', start - 1) + 1;
+
+                // Find end of the line containing the selection end
+                let lineEndPos = textarea.value.indexOf('\n', end);
+                if (lineEndPos === -1) {
+                    lineEndPos = textarea.value.length;
+                }
+                // If selection ends on a newline, we should not include the next line in the block.
+                if (end > 0 && textarea.value[end - 1] === '\n' && end > lineStartPos) {
+                    lineEndPos = end - 1;
+                }
+
+                const originalBlock = textarea.value.substring(lineStartPos, lineEndPos);
+                const lines = originalBlock.split('\n');
+                let newBlock;
+
+                const prefix = { h1: '# ', h2: '## ', ul: '- ' }[format];
+                const otherPrefixesRegex = /^(# |## |- |\d+\. )/;
+
+                if (format === 'ol') {
+                    // Check if all non-empty lines are already numbered
+                    const allAreNumbered = lines.filter(l => l.trim() !== '').every(l => /^\d+\.\s/.test(l));
+                    if (allAreNumbered) {
+                        // If so, remove numbering
+                        newBlock = lines.map(l => l.replace(/^\d+\.\s/, '')).join('\n');
+                    } else {
+                        // Otherwise, add numbering
+                        let counter = 1;
+                        newBlock = lines.map(l => {
+                            if (l.trim() === '') return l; // Keep empty lines
+                            return `${counter++}. ${l.replace(otherPrefixesRegex, '')}`;
+                        }).join('\n');
+                    }
+                } else { // h1, h2, ul
+                    // Check if all non-empty lines have the prefix
+                    const allHavePrefix = lines.filter(l => l.trim() !== '').every(l => l.startsWith(prefix));
+                    if (allHavePrefix) {
+                        // If so, remove prefix
+                        newBlock = lines.map(l => l.startsWith(prefix) ? l.substring(prefix.length) : l).join('\n');
+                    } else {
+                        // Otherwise, add prefix (and remove any other)
+                        newBlock = lines.map(l => {
+                            if (l.trim() === '') return l; // Keep empty lines
+                            return prefix + l.replace(otherPrefixesRegex, '');
+                        }).join('\n');
+                    }
+                }
+
+                textarea.setRangeText(newBlock, lineStartPos, lineEndPos);
+                
+                // Adjust selection to cover the new block
+                const newEnd = lineStartPos + newBlock.length;
+                textarea.setSelectionRange(lineStartPos, newEnd);
+                break;
+            }
+            case 'bold':
+            case 'italic': {
+                const markers = { bold: '**', italic: '*' };
+                const marker = markers[format];
+                const replacement = marker + selectedText + marker;
+                textarea.setRangeText(replacement, start, end, 'select');
+
+                // Adjust cursor if no text was selected
+                if (start === end) {
+                    textarea.setSelectionRange(start + marker.length, start + marker.length);
+                }
+                break;
+            }
+            case 'hr': {
+                const value = textarea.value;
+                const textBefore = value.substring(0, start);
+                const needsNewlineBefore = start > 0 && textBefore.trim().length > 0 && !textBefore.endsWith('\n\n');
+                const prefixNewline = needsNewlineBefore ? (textBefore.endsWith('\n') ? '\n' : '\n\n') : '';
+
+                const textToInsert = prefixNewline + '---\n';
+                textarea.setRangeText(textToInsert, start, end);
+                newCursorPos = start + textToInsert.length;
+                break;
+            }
+        }
+
+        textarea.focus();
+        if (newCursorPos !== -1) {
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+        }
+
+        // Trigger input event to update char count etc.
+        textarea.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    }
+
     setupEventListeners() {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
         const saveBtn = this.shadowRoot.querySelector('.entity-notes-save');
         const deleteBtn = this.shadowRoot.querySelector('.entity-notes-delete');
+        const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
+
+        markdownToolbar.addEventListener('mousedown', (event) => {
+            const button = event.target.closest('.entity-notes-md-button');
+            if (button) {
+                event.preventDefault(); // Prevent textarea from losing focus
+            }
+        });
+
+        markdownToolbar.addEventListener('click', (event) => {
+            const button = event.target.closest('.entity-notes-md-button');
+            if (!button) return;
+
+            if (button.dataset.format) {
+                this.formatText(button.dataset.format);
+            } else if (button.dataset.action === 'undo') {
+                this.undo();
+            } else if (button.dataset.action === 'redo') {
+                this.redo();
+            }
+        });
 
         textarea.addEventListener('input', () => {
             this.updateCharCount();
             this.autoResize();
             this.updateButtonVisibility();
+            this.updateUndoRedoButtons();
+        });
+
+        textarea.addEventListener('keydown', (event) => {
+            if (event.ctrlKey || event.metaKey) { // metaKey for macOS
+                if (event.key.toLowerCase() === 'z') {
+                    event.preventDefault();
+                    this.undo();
+                } else if (event.key.toLowerCase() === 'y') {
+                    event.preventDefault();
+                    this.redo();
+                }
+            }
         });
 
         textarea.addEventListener('focus', () => {
@@ -394,16 +618,21 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
+        const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
+        this.initialState = textarea.value;
+        this.redoState = null;
 
         viewDiv.classList.add('hidden');
         textarea.classList.remove('hidden');
         charCount.style.display = 'block';
+        markdownToolbar.classList.remove('hidden');
 
         // Focus the textarea
         setTimeout(() => {
             textarea.focus();
             this.autoResize();
         }, 10);
+        this.updateUndoRedoButtons();
 
         debugLog('Entity Notes: Switched to edit mode');
     }
@@ -412,6 +641,7 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
+        const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
         const noteText = textarea.value.trim();
 
         // Only switch to view mode if there's content and we're not actively editing
@@ -424,6 +654,7 @@ class EntityNotesCard extends HTMLElement {
             viewDiv.classList.remove('hidden');
             textarea.classList.add('hidden');
             charCount.style.display = 'none';
+            markdownToolbar.classList.add('hidden');
 
             debugLog('Entity Notes: Switched to view mode');
         } else if (noteText.length === 0) {
@@ -446,11 +677,15 @@ class EntityNotesCard extends HTMLElement {
 
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
             const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+            const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
             const noteText = data.note || '';
             textarea.value = noteText;
 
             // Track if there's an existing note
             this.hasExistingNote = noteText.length > 0;
+
+            this.initialState = noteText;
+            this.redoState = null;
 
             this.updateCharCount();
             this.updateButtonVisibility();
@@ -461,12 +696,15 @@ class EntityNotesCard extends HTMLElement {
                 viewDiv.innerHTML = this.renderMarkdown(noteText);
                 viewDiv.classList.remove('hidden');
                 textarea.classList.add('hidden');
+                markdownToolbar.classList.add('hidden');
                 this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'none';
                 this.isEditing = false;
             } else {
                 viewDiv.classList.add('hidden');
                 textarea.classList.remove('hidden');
+                markdownToolbar.classList.remove('hidden');
                 this.isEditing = false;
+                this.updateUndoRedoButtons();
             }
 
             debugLog(`Entity Notes: Note loaded for ${type}, hasExistingNote: ${this.hasExistingNote}`);
@@ -527,9 +765,11 @@ class EntityNotesCard extends HTMLElement {
             if (response.ok) {
                 const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
                 const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+                const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
 
                 textarea.value = '';
                 viewDiv.innerHTML = '';
+                markdownToolbar.classList.remove('hidden');
                 this.hasExistingNote = false;
 
                 // Show textarea in edit mode after deletion
@@ -540,6 +780,7 @@ class EntityNotesCard extends HTMLElement {
 
                 this.updateCharCount();
                 this.updateButtonVisibility();
+                this.updateUndoRedoButtons();
                 this.autoResize();
                 debugLog(`Entity Notes: Note deleted successfully for ${type}`);
             }
