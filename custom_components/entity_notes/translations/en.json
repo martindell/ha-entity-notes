@@ -10,7 +10,8 @@
           "auto_backup": "Enable automatic backups",
           "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists",
           "delete_notes_with_entity": "Automatically delete notes when entities are removed",
-          "hide_buttons_until_focus": "Hide buttons unless text area is focused"
+          "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+          "show_markdown_toolbar": "Show markdown formatting toolbar"
         }
       },
       "reconfigure": {
@@ -22,7 +23,8 @@
           "auto_backup": "Enable automatic backups",
           "hide_buttons_when_empty": "Hide buttons when no note exists",
           "delete_notes_with_entity": "Automatically delete notes when entities are removed",
-          "hide_buttons_until_focus": "Hide buttons unless text area is focused"
+          "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+          "show_markdown_toolbar": "Show markdown formatting toolbar"
         }
       }
     },
@@ -39,14 +41,15 @@
     "step": {
       "init": {
         "title": "Entity Notes Options",
-        "description": "{description}",
+        "description": "{description}\n\nNote: after saving, do a hard browser refresh (Ctrl+Shift+R / Cmd+Shift+R) for display changes to take effect.",
         "data": {
           "debug_logging": "Enable debug logging",
           "max_note_length": "Maximum note length (50-2000 characters)",
           "auto_backup": "Enable automatic backups",
           "hide_buttons_when_empty": "Hide buttons when no note exists",
           "delete_notes_with_entity": "Automatically delete notes when entities are removed",
-          "hide_buttons_until_focus": "Hide buttons unless text area is focused"
+          "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+          "show_markdown_toolbar": "Show markdown formatting toolbar"
         }
       }
     },

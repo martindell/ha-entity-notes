@@ -8,6 +8,7 @@ window.entityNotes = {
     hideButtonsWhenEmpty: {{HIDE_BUTTONS_WHEN_EMPTY}},
     hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
+    showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
 
     // Convenience methods for users
     enableDebug: function() {
@@ -217,16 +218,16 @@ class EntityNotesCard extends HTMLElement {
             <div class="entity-notes-container">
                 <div class="entity-notes-view"></div>
                 <div class="entity-notes-markdown-toolbar hidden">
-                    <button class="entity-notes-md-button" data-action="undo" title="Rückgängig (Strg+Z)" disabled>↶</button>
-                    <button class="entity-notes-md-button" data-action="redo" title="Wiederholen (Strg+Y)" disabled>↷</button>
+                    <button class="entity-notes-md-button" data-action="undo" title="Undo (Ctrl+Z)" disabled>↩</button>
+                    <button class="entity-notes-md-button" data-action="redo" title="Redo (Ctrl+Y)" disabled>↪</button>
                     <div style="width: 8px;"></div>
-                    <button class="entity-notes-md-button" data-format="h1" title="Überschrift 1">H1</button>
-                    <button class="entity-notes-md-button" data-format="h2" title="Überschrift 2">H2</button>
-                    <button class="entity-notes-md-button" data-format="bold" title="Fett"><b>B</b></button>
-                    <button class="entity-notes-md-button" data-format="italic" title="Kursiv"><i>K</i></button>
-                    <button class="entity-notes-md-button" data-format="ul" title="Aufzählung">&bull;</button>
-                    <button class="entity-notes-md-button" data-format="ol" title="Nummerierte Liste">1.</button>
-                    <button class="entity-notes-md-button" data-format="hr" title="Trennlinie">&mdash;</button>
+                    <button class="entity-notes-md-button" data-format="h1" title="Heading 1">H1</button>
+                    <button class="entity-notes-md-button" data-format="h2" title="Heading 2">H2</button>
+                    <button class="entity-notes-md-button" data-format="bold" title="Bold"><b>B</b></button>
+                    <button class="entity-notes-md-button" data-format="italic" title="Italic"><i>I</i></button>
+                    <button class="entity-notes-md-button" data-format="ul" title="Bullet list">&bull;</button>
+                    <button class="entity-notes-md-button" data-format="ol" title="Numbered list">1.</button>
+                    <button class="entity-notes-md-button" data-format="hr" title="Divider">&mdash;</button>
                 </div>
                 <textarea
                     class="entity-notes-textarea"
@@ -625,7 +626,7 @@ class EntityNotesCard extends HTMLElement {
         viewDiv.classList.add('hidden');
         textarea.classList.remove('hidden');
         charCount.style.display = 'block';
-        markdownToolbar.classList.remove('hidden');
+        if (window.entityNotes.showMarkdownToolbar) markdownToolbar.classList.remove('hidden');
 
         // Focus the textarea
         setTimeout(() => {
@@ -702,7 +703,7 @@ class EntityNotesCard extends HTMLElement {
             } else {
                 viewDiv.classList.add('hidden');
                 textarea.classList.remove('hidden');
-                markdownToolbar.classList.remove('hidden');
+                if (window.entityNotes.showMarkdownToolbar) markdownToolbar.classList.remove('hidden');
                 this.isEditing = false;
                 this.updateUndoRedoButtons();
             }
@@ -769,7 +770,7 @@ class EntityNotesCard extends HTMLElement {
 
                 textarea.value = '';
                 viewDiv.innerHTML = '';
-                markdownToolbar.classList.remove('hidden');
+                if (window.entityNotes.showMarkdownToolbar) markdownToolbar.classList.remove('hidden');
                 this.hasExistingNote = false;
 
                 // Show textarea in edit mode after deletion

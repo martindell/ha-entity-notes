@@ -18,12 +18,14 @@ from .const import (
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
     CONF_HIDE_BUTTONS_UNTIL_FOCUS,
     CONF_DELETE_NOTES_WITH_ENTITY,
+    CONF_SHOW_MARKDOWN_TOOLBAR,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS,
     DEFAULT_DELETE_NOTES_WITH_ENTITY,
+    DEFAULT_SHOW_MARKDOWN_TOOLBAR,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,6 +76,10 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_DELETE_NOTES_WITH_ENTITY,
                         default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
                     ): bool,
+                    vol.Optional(
+                        CONF_SHOW_MARKDOWN_TOOLBAR,
+                        default=current_options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR)
+                    ): bool,
                 }),
                 errors=errors,
                 description_placeholders={
@@ -112,6 +118,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
                                 vol.Optional(CONF_HIDE_BUTTONS_UNTIL_FOCUS, default=DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS): bool,
                                 vol.Optional(CONF_DELETE_NOTES_WITH_ENTITY, default=DEFAULT_DELETE_NOTES_WITH_ENTITY): bool,
+                                vol.Optional(CONF_SHOW_MARKDOWN_TOOLBAR, default=DEFAULT_SHOW_MARKDOWN_TOOLBAR): bool,
                             }),
                             errors=errors,
                             description_placeholders={
@@ -133,6 +140,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
                         CONF_HIDE_BUTTONS_UNTIL_FOCUS: user_input.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS),
                         CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
+                        CONF_SHOW_MARKDOWN_TOOLBAR: user_input.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR),
                     },
                 )
 
@@ -153,6 +161,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_HIDE_BUTTONS_WHEN_EMPTY, default=DEFAULT_HIDE_BUTTONS_WHEN_EMPTY): bool,
                 vol.Optional(CONF_HIDE_BUTTONS_UNTIL_FOCUS, default=DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS): bool,
                 vol.Optional(CONF_DELETE_NOTES_WITH_ENTITY, default=DEFAULT_DELETE_NOTES_WITH_ENTITY): bool,
+                vol.Optional(CONF_SHOW_MARKDOWN_TOOLBAR, default=DEFAULT_SHOW_MARKDOWN_TOOLBAR): bool,
             }),
             errors=errors,
             description_placeholders={
@@ -188,6 +197,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
                         CONF_HIDE_BUTTONS_UNTIL_FOCUS: user_input.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS),
                         CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
+                        CONF_SHOW_MARKDOWN_TOOLBAR: user_input.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR),
                     },
                     reason="reconfigure_successful",
                 )
@@ -219,6 +229,10 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_DELETE_NOTES_WITH_ENTITY,
                     default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
+                ): bool,
+                vol.Optional(
+                    CONF_SHOW_MARKDOWN_TOOLBAR,
+                    default=current_options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR)
                 ): bool,
             }),
             errors=errors,
@@ -262,6 +276,7 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                         CONF_HIDE_BUTTONS_WHEN_EMPTY: user_input.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY),
                         CONF_HIDE_BUTTONS_UNTIL_FOCUS: user_input.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS),
                         CONF_DELETE_NOTES_WITH_ENTITY: user_input.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY),
+                        CONF_SHOW_MARKDOWN_TOOLBAR: user_input.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR),
                     }
                 )
 
@@ -297,6 +312,10 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_DELETE_NOTES_WITH_ENTITY,
                     default=current_options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
+                ): bool,
+                vol.Optional(
+                    CONF_SHOW_MARKDOWN_TOOLBAR,
+                    default=current_options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR)
                 ): bool,
             }),
             errors=errors,

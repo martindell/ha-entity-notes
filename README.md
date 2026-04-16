@@ -380,6 +380,10 @@ Get all notes (fires an event with the result).
 - Ensure sufficient disk space for backup operations
 - Verify file permissions for the config directory
 
+## Contributors
+
+- [@Bjoern3D](https://github.com/Bjoern3D) - Markdown formatting toolbar, undo/redo functionality, and UX improvements
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
