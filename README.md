@@ -171,6 +171,18 @@ https://example.com
 
 Which renders as headings, lists, bold, italic, a horizontal divider, and a clickable link.
 
+### Formatting Toolbar
+
+To make formatting notes even easier, the editor includes a convenient toolbar above the text area when in edit mode. It provides one-click access to the most common formatting options:
+
+*   **Undo/Redo (`↶` / `↷`)**: Reverts or restores the last action. Also accessible via standard keyboard shortcuts (`Ctrl+Z` / `Ctrl+Y`).
+*   **Headings (`H1` / `H2`)**: Applies a heading style to the current line(s).
+*   **Bold (`B`)**: Makes the selected text bold (`**text**`).
+*   **Italic (`K`)**: Makes the selected text italic (`*text*`).
+*   **Lists (`•` / `1.`)**: Formats the selected line(s) as a bulleted or numbered list. This feature intelligently handles multiple selected lines, creating correctly incremented numbered lists.
+*   **Horizontal Rule (`—`)**: Inserts a horizontal rule (`---`) into the note.
+
+
 ### Tips
 
 - The text area automatically resizes based on content
