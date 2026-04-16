@@ -71,7 +71,6 @@ class EntityNotesCard extends HTMLElement {
                     line-height: 1.4;
                     box-sizing: border-box;
                     cursor: text;
-                    white-space: pre-wrap;
                     word-wrap: break-word;
                 }
                 .entity-notes-view:hover {
@@ -83,6 +82,29 @@ class EntityNotesCard extends HTMLElement {
                 }
                 .entity-notes-view a:hover {
                     color: var(--accent-color, #0288d1);
+                }
+                .entity-notes-view ul,
+                .entity-notes-view ol {
+                    margin: 4px 0;
+                    padding-left: 20px;
+                }
+                .entity-notes-view li {
+                    margin: 2px 0;
+                }
+                .entity-notes-view h1 {
+                    font-size: 1.1em;
+                    font-weight: bold;
+                    margin: 6px 0 2px 0;
+                }
+                .entity-notes-view h2 {
+                    font-size: 1em;
+                    font-weight: bold;
+                    margin: 4px 0 2px 0;
+                }
+                .entity-notes-view hr {
+                    border: none;
+                    border-top: 1px solid var(--divider-color, #e0e0e0);
+                    margin: 6px 0;
                 }
                 .entity-notes-view.hidden {
                     display: none;
@@ -156,7 +178,7 @@ class EntityNotesCard extends HTMLElement {
                 <div class="entity-notes-view"></div>
                 <textarea
                     class="entity-notes-textarea"
-                    placeholder="Notes"
+                    placeholder="Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider)"
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
@@ -169,24 +191,95 @@ class EntityNotesCard extends HTMLElement {
         `;
     }
 
-    convertLinksToClickable(text) {
-        // Escape HTML to prevent XSS
-        const escapeHtml = (str) => {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
+    renderMarkdown(text) {
+        const escapeHtml = (str) => str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+
+        // Single-pass inline processor: finds the earliest pattern match,
+        // escapes the literal text before it, renders the match, then continues.
+        const processInline = (raw) => {
+            const inlinePatterns = [
+                { re: /\*\*(.+?)\*\*/, render: (m) => `<strong>${escapeHtml(m[1])}</strong>` },
+                { re: /\*(.+?)\*/,     render: (m) => `<em>${escapeHtml(m[1])}</em>` },
+                { re: /https?:\/\/[^\s]+/, render: (m) => `<a href="${escapeHtml(m[0])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[0])}</a>` },
+            ];
+
+            let result = '';
+            let remaining = raw;
+
+            while (remaining.length > 0) {
+                let best = null, bestIndex = Infinity, bestPattern = null;
+                for (const p of inlinePatterns) {
+                    const m = p.re.exec(remaining);
+                    if (m && m.index < bestIndex) {
+                        best = m; bestIndex = m.index; bestPattern = p;
+                    }
+                }
+
+                if (!best) {
+                    result += escapeHtml(remaining);
+                    break;
+                }
+
+                result += escapeHtml(remaining.slice(0, bestIndex));
+                result += bestPattern.render(best);
+                remaining = remaining.slice(bestIndex + best[0].length);
+            }
+
+            return result;
         };
 
-        // Regular expression to match URLs
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        // Process block-level structure line by line
+        const lines = text.split('\n');
+        const parts = [];
+        let listType = null;
 
-        // Escape the text first
-        const escapedText = escapeHtml(text);
+        const flushList = () => {
+            if (listType) {
+                parts.push(`</${listType}>`);
+                listType = null;
+            }
+        };
 
-        // Replace URLs with clickable links
-        return escapedText.replace(urlRegex, (url) => {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-        });
+        for (let i = 0; i < lines.length; i++) {
+            const trimmed = lines[i].trim();
+            const h1Match = /^#\s+(.+)$/.exec(trimmed);
+            const h2Match = /^##\s+(.+)$/.exec(trimmed);
+            const ulMatch = /^[-*]\s+(.+)$/.exec(trimmed);
+            const olMatch = /^\d+\.\s+(.+)$/.exec(trimmed);
+            const hrMatch = /^-{3,}$/.test(trimmed);
+
+            if (h2Match) {
+                flushList();
+                parts.push(`<h2>${processInline(h2Match[1])}</h2>`);
+            } else if (h1Match) {
+                flushList();
+                parts.push(`<h1>${processInline(h1Match[1])}</h1>`);
+            } else if (hrMatch) {
+                flushList();
+                parts.push('<hr>');
+            } else if (ulMatch) {
+                if (listType !== 'ul') { flushList(); parts.push('<ul>'); listType = 'ul'; }
+                parts.push(`<li>${processInline(ulMatch[1])}</li>`);
+            } else if (olMatch) {
+                if (listType !== 'ol') { flushList(); parts.push('<ol>'); listType = 'ol'; }
+                parts.push(`<li>${processInline(olMatch[1])}</li>`);
+            } else {
+                flushList();
+                if (trimmed === '') {
+                    if (i < lines.length - 1) parts.push('<br>');
+                } else {
+                    const isLast = i === lines.length - 1;
+                    parts.push(processInline(trimmed) + (isLast ? '' : '<br>'));
+                }
+            }
+        }
+
+        flushList();
+        return parts.join('');
     }
 
     setupEventListeners() {
@@ -326,7 +419,7 @@ class EntityNotesCard extends HTMLElement {
             this.isEditing = false;
 
             // Convert links to clickable format
-            viewDiv.innerHTML = this.convertLinksToClickable(noteText);
+            viewDiv.innerHTML = this.renderMarkdown(noteText);
 
             viewDiv.classList.remove('hidden');
             textarea.classList.add('hidden');
@@ -365,7 +458,7 @@ class EntityNotesCard extends HTMLElement {
 
             // Show in view mode if there's a note, edit mode if empty
             if (noteText.length > 0) {
-                viewDiv.innerHTML = this.convertLinksToClickable(noteText);
+                viewDiv.innerHTML = this.renderMarkdown(noteText);
                 viewDiv.classList.remove('hidden');
                 textarea.classList.add('hidden');
                 this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'none';

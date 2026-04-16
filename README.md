@@ -152,6 +152,25 @@ hide_buttons_when_empty: false
 4. Use the **"SAVE"** button to save your changes
 5. Use the **"DELETE"** button to remove notes entirely
 
+### Markdown Formatting
+
+Notes support Markdown formatting. Here's everything that's supported:
+
+```
+# Title
+## Subtitle
+- Bullet item
+- Another item
+1. Numbered item
+2. Another numbered item
+**bold text**
+*italic text*
+---
+https://example.com
+```
+
+Which renders as headings, lists, bold, italic, a horizontal divider, and a clickable link.
+
 ### Tips
 
 - The text area automatically resizes based on content
