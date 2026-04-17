@@ -15,6 +15,7 @@ CONF_HIDE_BUTTONS_UNTIL_FOCUS = "hide_buttons_until_focus"  # NEW
 CONF_DELETE_NOTES_WITH_ENTITY = "delete_notes_with_entity"
 CONF_DELETE_NOTES_WITH_DEVICE = "delete_notes_with_device"
 CONF_ENABLE_DEVICE_NOTES = "enable_device_notes"
+CONF_SHOW_MARKDOWN_TOOLBAR = "show_markdown_toolbar"
 
 # Events
 EVENT_NOTES_UPDATED = "entity_notes_updated"
@@ -43,6 +44,7 @@ DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS = False  # NEW - maintain backward compatibilit
 DEFAULT_DELETE_NOTES_WITH_ENTITY = True
 DEFAULT_DELETE_NOTES_WITH_DEVICE = True
 DEFAULT_ENABLE_DEVICE_NOTES = True
+DEFAULT_SHOW_MARKDOWN_TOOLBAR = True
 
 # File paths
 FRONTEND_JS_PATH = "entity-notes.js"

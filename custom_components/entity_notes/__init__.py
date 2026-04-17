@@ -26,6 +26,7 @@ from .const import (
     CONF_DELETE_NOTES_WITH_ENTITY,
     CONF_DELETE_NOTES_WITH_DEVICE,
     CONF_ENABLE_DEVICE_NOTES,
+    CONF_SHOW_MARKDOWN_TOOLBAR,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_DELETE_NOTES_WITH_ENTITY,
     DEFAULT_DELETE_NOTES_WITH_DEVICE,
     DEFAULT_ENABLE_DEVICE_NOTES,
+    DEFAULT_SHOW_MARKDOWN_TOOLBAR,
     FRONTEND_JS_PATH,
     EVENT_NOTES_UPDATED,
     EVENT_DEVICE_NOTES_UPDATED,
@@ -75,6 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     delete_notes_with_entity = options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
     delete_notes_with_device = options.get(CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE)
     enable_device_notes = options.get(CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES)
+    show_markdown_toolbar = options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR)
 
     if debug_logging:
         _LOGGER.setLevel(logging.DEBUG)
@@ -182,6 +185,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_DELETE_NOTES_WITH_ENTITY: delete_notes_with_entity,
                 CONF_DELETE_NOTES_WITH_DEVICE: delete_notes_with_device,
                 CONF_ENABLE_DEVICE_NOTES: enable_device_notes,
+                CONF_SHOW_MARKDOWN_TOOLBAR: show_markdown_toolbar,
             },
             "entry_id": entry.entry_id,
             "entity_listener_remove": None,  # Will store the entity event listener removal callable
@@ -734,6 +738,7 @@ class EntityNotesJSView(HomeAssistantView):
         hide_buttons_when_empty = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_WHEN_EMPTY, False)
         hide_buttons_until_focus = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, False)
         enable_device_notes = hass.data[DOMAIN]["config"].get(CONF_ENABLE_DEVICE_NOTES, True)
+        show_markdown_toolbar = hass.data[DOMAIN]["config"].get(CONF_SHOW_MARKDOWN_TOOLBAR, True)
 
         # Get the JavaScript file path
         js_file_path = Path(__file__).parent / FRONTEND_JS_PATH
@@ -752,6 +757,7 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{HIDE_BUTTONS_WHEN_EMPTY}}', str(hide_buttons_when_empty).lower())
             js_content = js_content.replace('{{HIDE_BUTTONS_UNTIL_FOCUS}}', str(hide_buttons_until_focus).lower())
             js_content = js_content.replace('{{ENABLE_DEVICE_NOTES}}', str(enable_device_notes).lower())
+            js_content = js_content.replace('{{SHOW_MARKDOWN_TOOLBAR}}', str(show_markdown_toolbar).lower())
 
             return web.Response(text=js_content, content_type='application/javascript')
 
