@@ -41,7 +41,7 @@
     "step": {
       "init": {
         "title": "Entity Notes Options",
-        "description": "{description}\n\nNote: after saving, do a hard browser refresh (Ctrl+Shift+R / Cmd+Shift+R) for display changes to take effect.",
+        "description": "{description}\n\nNote: after saving, reload the integration and do a hard browser refresh (Ctrl+Shift+R / Cmd+Shift+R) for display changes to take effect.",
         "data": {
           "debug_logging": "Enable debug logging",
           "max_note_length": "Maximum note length (50-2000 characters)",
