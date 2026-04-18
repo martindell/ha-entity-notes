@@ -545,8 +545,6 @@ class EntityNotesCard extends HTMLElement {
                 const url = prompt('Enter URL:', 'https://');
                 if (url === null) break; // User cancelled
                 
-                // HIER IST DIE AENDERUNG:
-                // Wir bauen den String im korrekten Markdown-Format zusammen: [Text](URL)
                 const linkMarkdown = `[${linkText}](${url})`;
                 
                 textarea.setRangeText(linkMarkdown, start, end, 'end');

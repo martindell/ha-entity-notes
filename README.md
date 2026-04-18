@@ -165,11 +165,17 @@ Notes support Markdown formatting. Here's everything that's supported:
 2. Another numbered item
 **bold text**
 *italic text*
+~~strikethrough~~
+`inline code`
+```code block```
+> blockquote
+[link text](https://example.com)
 ---
-https://example.com
 ```
 
-Which renders as headings, lists, bold, italic, a horizontal divider, and a clickable link.
+Which renders as headings, lists, bold, italic, strikethrough, inline code, code blocks, blockquotes, links, and a horizontal divider.
+
+When the Markdown toolbar is enabled, formatting buttons are available directly in the editor for bold, italic, strikethrough, inline code, code blocks, blockquotes, and link insertion.
 
 ### Tips
 
@@ -382,7 +388,7 @@ Get all notes (fires an event with the result).
 
 ## Contributors
 
-- [@Bjoern3D](https://github.com/Bjoern3D) - Markdown formatting toolbar, undo/redo functionality, and UX improvements
+- [@Bjoern3D](https://github.com/Bjoern3D) - Markdown formatting toolbar (including inline code, code blocks, blockquotes, strikethrough, and link insertion), undo/redo functionality, toolbar visibility fix, and UX improvements
 
 ## Contributing
 
