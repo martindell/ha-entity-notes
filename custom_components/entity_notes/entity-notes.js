@@ -228,10 +228,16 @@ class EntityNotesCard extends HTMLElement {
                     <button class="entity-notes-md-button" data-format="ul" title="Bullet list">&bull;</button>
                     <button class="entity-notes-md-button" data-format="ol" title="Numbered list">1.</button>
                     <button class="entity-notes-md-button" data-format="hr" title="Divider">&mdash;</button>
+                    <div style="width: 8px;"></div>
+                    <button class="entity-notes-md-button" data-format="inline-code" title="Inline Code">\`</button>
+                    <button class="entity-notes-md-button" data-format="code-block" title="Code Block">\`\`\`</button>
+                    <button class="entity-notes-md-button" data-format="link" title="Insert Link">🔗</button>
+                    <button class="entity-notes-md-button" data-format="blockquote" title="Blockquote">”</button>
+                    <button class="entity-notes-md-button" data-format="strikethrough" title="Strikethrough">~</button>
                 </div>
                 <textarea
                     class="entity-notes-textarea"
-                    placeholder="Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider)"
+                    placeholder="Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, \`inline code\`, > blockquote, ~strikethrough~)"
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
@@ -255,8 +261,11 @@ class EntityNotesCard extends HTMLElement {
         // escapes the literal text before it, renders the match, then continues.
         const processInline = (raw) => {
             const inlinePatterns = [
+                { re: /\[(.*?)\]\((.*?)\)/, render: (m) => `<a href="${escapeHtml(m[2])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[1])}</a>` }, // text
                 { re: /\*\*(.+?)\*\*/, render: (m) => `<strong>${escapeHtml(m[1])}</strong>` },
                 { re: /\*(.+?)\*/,     render: (m) => `<em>${escapeHtml(m[1])}</em>` },
+                { re: /`(.+?)`/,       render: (m) => `<code>${escapeHtml(m[1])}</code>` }, // Inline code
+                { re: /~(.+?)~/,       render: (m) => `<del>${escapeHtml(m[1])}</del>` }, // Strikethrough
                 { re: /https?:\/\/[^\s]+/, render: (m) => `<a href="${escapeHtml(m[0])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[0])}</a>` },
             ];
 
@@ -289,6 +298,8 @@ class EntityNotesCard extends HTMLElement {
         const lines = text.split('\n');
         const parts = [];
         let listType = null;
+        let inCodeBlock = false; // New state for code blocks
+        let inBlockquote = false; // New state for blockquotes
 
         const flushList = () => {
             if (listType) {
@@ -298,30 +309,65 @@ class EntityNotesCard extends HTMLElement {
         };
 
         for (let i = 0; i < lines.length; i++) {
-            const trimmed = lines[i].trim();
+            const line = lines[i];
+            const trimmed = line.trim();
+
+            // Handle fenced code blocks
+            if (trimmed.startsWith('```')) {
+                flushList();
+                if (inCodeBlock) {
+                    parts.push('</code></pre>');
+                    inCodeBlock = false;
+                } else {
+                    parts.push('<pre><code>');
+                    inCodeBlock = true;
+                }
+                continue; // Skip further processing for fence lines
+            }
+
+            if (inCodeBlock) {
+                parts.push(escapeHtml(line) + '\n'); // Render content inside code block as-is, preserving newlines
+                continue;
+            }
+
             const h1Match = /^#\s+(.+)$/.exec(trimmed);
             const h2Match = /^##\s+(.+)$/.exec(trimmed);
             const ulMatch = /^[-*]\s+(.+)$/.exec(trimmed);
             const olMatch = /^\d+\.\s+(.+)$/.exec(trimmed);
             const hrMatch = /^-{3,}$/.test(trimmed);
 
-            if (h2Match) {
+            const blockquoteMatch = /^>\s*(.*)$/.exec(line); // Use 'line' not 'trimmed' to preserve leading spaces for blockquote content
+
+            if (blockquoteMatch) {
                 flushList();
+                if (!inBlockquote) {
+                    parts.push('<blockquote>');
+                    inBlockquote = true;
+                }
+                parts.push(`<p>${processInline(blockquoteMatch[1])}</p>`);
+            } else if (h2Match) {
+                flushList();
+                if (inBlockquote) { parts.push('</blockquote>'); inBlockquote = false; }
                 parts.push(`<h2>${processInline(h2Match[1])}</h2>`);
             } else if (h1Match) {
                 flushList();
+                if (inBlockquote) { parts.push('</blockquote>'); inBlockquote = false; }
                 parts.push(`<h1>${processInline(h1Match[1])}</h1>`);
             } else if (hrMatch) {
                 flushList();
+                if (inBlockquote) { parts.push('</blockquote>'); inBlockquote = false; }
                 parts.push('<hr>');
             } else if (ulMatch) {
-                if (listType !== 'ul') { flushList(); parts.push('<ul>'); listType = 'ul'; }
+                if (inBlockquote) { parts.push('</blockquote>'); inBlockquote = false; }
+                if (listType !== 'ul') { flushList(); parts.push('<ul>'); listType = 'ul'; } // Flush list if type changes
                 parts.push(`<li>${processInline(ulMatch[1])}</li>`);
             } else if (olMatch) {
-                if (listType !== 'ol') { flushList(); parts.push('<ol>'); listType = 'ol'; }
+                if (inBlockquote) { parts.push('</blockquote>'); inBlockquote = false; }
+                if (listType !== 'ol') { flushList(); parts.push('<ol>'); listType = 'ol'; } // Flush list if type changes
                 parts.push(`<li>${processInline(olMatch[1])}</li>`);
             } else {
                 flushList();
+                if (inBlockquote) { parts.push('</blockquote>'); inBlockquote = false; }
                 if (trimmed === '') {
                     if (i < lines.length - 1) parts.push('<br>');
                 } else {
@@ -332,6 +378,10 @@ class EntityNotesCard extends HTMLElement {
         }
 
         flushList();
+        if (inBlockquote) {
+            parts.push('</blockquote>');
+            inBlockquote = false;
+        }
         return parts.join('');
     }
 
@@ -460,6 +510,80 @@ class EntityNotesCard extends HTMLElement {
                 const textToInsert = prefixNewline + '---\n';
                 textarea.setRangeText(textToInsert, start, end);
                 newCursorPos = start + textToInsert.length;
+                break;
+            }
+            case 'inline-code': {
+                const marker = '`';
+                const replacement = marker + selectedText + marker;
+                textarea.setRangeText(replacement, start, end, 'select');
+                if (start === end) {
+                    textarea.setSelectionRange(start + marker.length, start + marker.length);
+                }
+                break;
+            }
+            case 'code-block': {
+                const marker = '```\n';
+                const closingMarker = '\n```';
+                let textToInsert;
+                let newCursorPos;
+
+                if (selectedText) {
+                    textToInsert = marker + selectedText + closingMarker;
+                    newCursorPos = start + marker.length; // Cursor at start of selected text in block
+                } else {
+                    textToInsert = marker + '\n' + closingMarker;
+                    newCursorPos = start + marker.length + 1; // Cursor on the empty line inside the block
+                }
+
+                textarea.setRangeText(textToInsert, start, end, 'end');
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+                break;
+            }
+            case 'link': {
+                const linkText = prompt('Enter link text:', selectedText || '');
+                if (linkText === null) break; // User cancelled
+                const url = prompt('Enter URL:', 'https://');
+                if (url === null) break; // User cancelled
+                
+                const linkMarkdown = `[${linkText}](${url})`;
+                
+                textarea.setRangeText(linkMarkdown, start, end, 'end');
+                newCursorPos = start + linkMarkdown.length; // Cursor after the closing parenthesis
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+                break;
+            }
+            case 'blockquote': {
+                const lineStartPos = textarea.value.lastIndexOf('\n', start - 1) + 1;
+                let lineEndPos = textarea.value.indexOf('\n', end);
+                if (lineEndPos === -1) {
+                    lineEndPos = textarea.value.length;
+                }
+                if (end > 0 && textarea.value[end - 1] === '\n' && end > lineStartPos) {
+                    lineEndPos = end - 1;
+                }
+
+                const originalBlock = textarea.value.substring(lineStartPos, lineEndPos);
+                const lines = originalBlock.split('\n');
+                const newBlock = lines.map(l => {
+                    if (l.startsWith('> ')) {
+                        return l.substring(2); // Remove blockquote
+                    } else {
+                        return '> ' + l; // Add blockquote
+                    }
+                }).join('\n');
+
+                textarea.setRangeText(newBlock, lineStartPos, lineEndPos);
+                const newEnd = lineStartPos + newBlock.length;
+                textarea.setSelectionRange(lineStartPos, newEnd);
+                break;
+            }
+            case 'strikethrough': {
+                const marker = '~';
+                const replacement = marker + selectedText + marker;
+                textarea.setRangeText(replacement, start, end, 'select');
+                if (start === end) {
+                    textarea.setSelectionRange(start + marker.length, start + marker.length);
+                }
                 break;
             }
         }
@@ -622,18 +746,21 @@ class EntityNotesCard extends HTMLElement {
         const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
         this.initialState = textarea.value;
         this.redoState = null;
+        this.updateUndoRedoButtons();
 
         viewDiv.classList.add('hidden');
         textarea.classList.remove('hidden');
         charCount.style.display = 'block';
-        if (window.entityNotes.showMarkdownToolbar) markdownToolbar.classList.remove('hidden');
+        
+        if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
+            markdownToolbar.classList.remove('hidden');
+        }
 
         // Focus the textarea
         setTimeout(() => {
             textarea.focus();
             this.autoResize();
         }, 10);
-        this.updateUndoRedoButtons();
 
         debugLog('Entity Notes: Switched to edit mode');
     }
@@ -703,7 +830,11 @@ class EntityNotesCard extends HTMLElement {
             } else {
                 viewDiv.classList.add('hidden');
                 textarea.classList.remove('hidden');
-                if (window.entityNotes.showMarkdownToolbar) markdownToolbar.classList.remove('hidden');
+                
+                if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
+                    markdownToolbar.classList.remove('hidden');
+                }
+                
                 this.isEditing = false;
                 this.updateUndoRedoButtons();
             }
@@ -770,14 +901,12 @@ class EntityNotesCard extends HTMLElement {
 
                 textarea.value = '';
                 viewDiv.innerHTML = '';
-                if (window.entityNotes.showMarkdownToolbar) markdownToolbar.classList.remove('hidden');
+                
+                if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
+                    markdownToolbar.classList.remove('hidden');
+                }
+                
                 this.hasExistingNote = false;
-
-                // Show textarea in edit mode after deletion
-                viewDiv.classList.add('hidden');
-                textarea.classList.remove('hidden');
-                this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'block';
-                this.isEditing = false;
 
                 this.updateCharCount();
                 this.updateButtonVisibility();
