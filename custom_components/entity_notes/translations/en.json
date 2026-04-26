@@ -11,7 +11,8 @@
           "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists",
           "delete_notes_with_entity": "Automatically delete notes when entities are removed",
           "hide_buttons_until_focus": "Hide buttons unless text area is focused",
-          "show_markdown_toolbar": "Show markdown formatting toolbar"
+          "show_markdown_toolbar": "Show markdown formatting toolbar",
+		      "confirm_delete": "Confirm before deleting a note"
         }
       },
       "reconfigure": {
@@ -24,7 +25,8 @@
           "hide_buttons_when_empty": "Hide buttons when no note exists",
           "delete_notes_with_entity": "Automatically delete notes when entities are removed",
           "hide_buttons_until_focus": "Hide buttons unless text area is focused",
-          "show_markdown_toolbar": "Show markdown formatting toolbar"
+          "show_markdown_toolbar": "Show markdown formatting toolbar",
+		      "confirm_delete": "Confirm before deleting a note"
         }
       }
     },
@@ -49,7 +51,8 @@
           "hide_buttons_when_empty": "Hide buttons when no note exists",
           "delete_notes_with_entity": "Automatically delete notes when entities are removed",
           "hide_buttons_until_focus": "Hide buttons unless text area is focused",
-          "show_markdown_toolbar": "Show markdown formatting toolbar"
+          "show_markdown_toolbar": "Show markdown formatting toolbar",
+		      "confirm_delete": "Confirm before deleting a note"
         }
       }
     },
