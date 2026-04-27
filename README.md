@@ -12,7 +12,11 @@ A Home Assistant integration that allows you to add custom notes to any entity u
 ## Features
 
 - 🗒️ **Add notes to any entity or device** - Works with all Home Assistant entities and devices (lights, sensors, switches, etc.)
-- 💾 **Persistent storage** - Notes are saved permanently and survive restarts
+- 📝 **Rich Markdown Support** - Format your text with bold, italic, lists, code blocks, and links via the built-in toolbar
+- ⚙️ **Jinja2 Templates** - Power-user feature! Use HA templates (e.g., `{{ states('sensor.ip') }}`) that resolve dynamically
+- 🔍 **Smart Live Preview** - Instantly preview your rendered Markdown and Jinja2 code while typing
+- 🕒 **Last Modified Timestamps** - Automatically track exactly when a note was last updated
+- � **Persistent storage** - Notes are saved permanently and survive restarts
 - 🎨 **Auto-resizing textarea** - Input field automatically adjusts to content size
 - 📱 **Responsive design** - Works on desktop and mobile
 - 🔒 **Local storage** - All data stays on your Home Assistant instance
@@ -22,9 +26,16 @@ A Home Assistant integration that allows you to add custom notes to any entity u
 - 🔄 **Automatic backup integration** - Notes included in Home Assistant backups
 - 🛠️ **Manual backup services** - Additional backup and restore services available
 
-## Screenshot
+## Screenshots
 
-![Entity Notes Screenshot](screenshot.png)
+**Desktop View:**
+![Entity Notes Desktop View](Current_Status.jpg)
+
+**Live Preview & Jinja2:**
+![Entity Notes Live Preview](Current_Status_preview.jpg)
+
+**Mobile Optimized View:**
+![Entity Notes Mobile View](Current_Status_mobile_view.jpg)
 
 The Entity Notes integration adds a notes section to every entity's "more info" dialog, allowing you to quickly add, edit, or delete notes associated with that entity.
 
@@ -58,28 +69,30 @@ The Entity Notes integration adds a notes section to every entity's "more info" 
    - **Enable automatic backups**: Notes are automatically included in Home Assistant backups
    - **Maximum note length**: Set character limit (50-2000 characters)
 
-When you change any of these options, please reload the integration.  HA only registes these settings on integration load / reload.  You'll likely also need to clear browser cache to see the changes take effect too.  So much caching!
+When you change any of these options, please reload the integration. HA only registes these settings on integration load / reload. You'll likely also need to clear browser cache to see the changes take effect too. So much caching!
 
 ### Configuration Options
 
-| Option | Description | Default | Range |
-|--------|-------------|---------|-------|
-| Debug Logging | Enable detailed logging for troubleshooting | `false` | true/false |
-| Hide Buttons When Empty | Hide Save/Delete buttons when no note exists | `false` | true/false |
-| Enable automatic backups | Include notes in HA backups | `true` | true/false |
-| Maximum Note Length | Character limit for notes | `200` | 50-2000 |
+| Option                   | Description                                  | Default | Range      |
+| ------------------------ | -------------------------------------------- | ------- | ---------- |
+| Debug Logging            | Enable detailed logging for troubleshooting  | `false` | true/false |
+| Hide Buttons When Empty  | Hide Save/Delete buttons when no note exists | `false` | true/false |
+| Enable automatic backups | Include notes in HA backups                  | `true`  | true/false |
+| Maximum Note Length      | Character limit for notes                    | `200`   | 50-2000    |
 
 #### Enable Debug Logging
 
 **Purpose**: Provides detailed logging information for troubleshooting and development purposes.
 
 **When to enable:**
+
 - 🐛 **Troubleshooting issues**: When notes aren't appearing, saving, or loading correctly
-- 🔍 **Development work**: When contributing to the project or customizing functionality  
+- 🔍 **Development work**: When contributing to the project or customizing functionality
 - 📊 **Performance analysis**: To understand how the integration processes entity data
 - 🚨 **Error investigation**: When experiencing unexpected behavior
 
 **What it logs:**
+
 - Entity ID detection and processing
 - Note loading and saving operations
 - Configuration changes and cache updates
@@ -90,6 +103,7 @@ When you change any of these options, please reload the integration.  HA only re
 **Log location**: Check **Settings → System → Logs** or your Home Assistant log files
 
 **Example log entries:**
+
 ```
 [custom_components.entity_notes] Entity Notes: Found entity ID: light.living_room
 [custom_components.entity_notes] Note loaded successfully for sensor.temperature
@@ -103,11 +117,11 @@ When you change any of these options, please reload the integration.  HA only re
 **Purpose**: Provides a cleaner, less cluttered user interface by hiding the Save and Delete buttons when an entity has no existing note.
 
 **Visual behavior:**
+
 - **When enabled (`true`)**:
   - 👁️ Buttons are **hidden** when the text area is empty AND no existing note exists
   - 👁️ Buttons **appear** as soon as you start typing or if a note already exists
   - 🎨 Creates a minimalist interface focused on entities that actually have notes
-  
 - **When disabled (`false`)**:
   - 👁️ Buttons are **always visible** regardless of note content
   - 🎨 Provides consistent interface across all entities
@@ -115,18 +129,21 @@ When you change any of these options, please reload the integration.  HA only re
 **Use cases:**
 
 **Enable this feature if you:**
+
 - 🎯 Want a cleaner, less cluttered interface
 - 📱 Use mobile devices where screen space is limited
 - 🔍 Prefer to focus attention on entities that actually have notes
 - ✨ Like minimalist UI design
 
 **Keep disabled if you:**
+
 - 🎯 Want consistent button placement across all entities
 - 🖱️ Prefer always-visible controls for quick access
 - 👥 Have multiple users who might be confused by disappearing buttons
 - 🔄 Frequently add/remove notes and want persistent controls
 
 **Technical details:**
+
 - Changes take effect immediately without restart
 - Uses intelligent detection to show buttons when typing begins
 - Remembers existing note state to show buttons appropriately
@@ -139,7 +156,7 @@ When you change any of these options, please reload the integration.  HA only re
 hide_buttons_when_empty: true
 # Result: Only entities with notes show buttons initially
 
-# Scenario 2: Consistent interface preferred  
+# Scenario 2: Consistent interface preferred
 hide_buttons_when_empty: false
 # Result: All entities always show Save/Delete buttons
 ```
@@ -156,7 +173,7 @@ hide_buttons_when_empty: false
 
 Notes support Markdown formatting. Here's everything that's supported:
 
-```
+````
 # Title
 ## Subtitle
 - Bullet item
@@ -171,7 +188,7 @@ Notes support Markdown formatting. Here's everything that's supported:
 > blockquote
 [link text](https://example.com)
 ---
-```
+````
 
 Which renders as headings, lists, bold, italic, strikethrough, inline code, code blocks, blockquotes, links, and a horizontal divider.
 
@@ -203,17 +220,17 @@ The integration also provides dedicated backup services for additional flexibili
 
 #### Available Services
 
-| Service | Description | Usage |
-|---------|-------------|--------|
-| `entity_notes.backup_notes` | Create a manual backup of all notes | Call manually or via automation |
-| `entity_notes.restore_notes` | Restore notes from manual backup | Call manually or via automation |
+| Service                      | Description                         | Usage                           |
+| ---------------------------- | ----------------------------------- | ------------------------------- |
+| `entity_notes.backup_notes`  | Create a manual backup of all notes | Call manually or via automation |
+| `entity_notes.restore_notes` | Restore notes from manual backup    | Call manually or via automation |
 
 #### Manual Backup Details
 
 - **Backup location**: `<config_directory>/entity_notes_backup.json`
 - **Format**: Human-readable JSON file
 - **Content**: All entity notes with their associated entity IDs
-- **Use cases**: 
+- **Use cases**:
   - Before major system changes
   - Creating specific notes-only backups
   - Migrating notes between systems
@@ -238,11 +255,13 @@ automation:
 #### Manual Service Calls
 
 **Create a backup:**
+
 ```yaml
 service: entity_notes.backup_notes
 ```
 
 **Restore from backup:**
+
 ```yaml
 service: entity_notes.restore_notes
 ```
@@ -300,6 +319,7 @@ Creates a manual backup of all entity notes.
 **Parameters:** None
 
 **Example:**
+
 ```yaml
 service: entity_notes.backup_notes
 ```
@@ -311,6 +331,7 @@ Restores entity notes from a manual backup file.
 **Parameters:** None
 
 **Example:**
+
 ```yaml
 service: entity_notes.restore_notes
 ```
@@ -320,10 +341,12 @@ service: entity_notes.restore_notes
 Programmatically set a note for an entity.
 
 **Parameters:**
+
 - `entity_id` (required): The entity ID to add a note to
 - `note` (required): The note text
 
 **Example:**
+
 ```yaml
 service: entity_notes.set_note
 data:
@@ -336,6 +359,7 @@ data:
 Retrieve a note for an entity (fires an event with the result).
 
 **Parameters:**
+
 - `entity_id` (required): The entity ID to get the note for
 
 ### entity_notes.delete_note
@@ -343,6 +367,7 @@ Retrieve a note for an entity (fires an event with the result).
 Delete a note for an entity.
 
 **Parameters:**
+
 - `entity_id` (required): The entity ID to delete the note from
 
 ### entity_notes.list_notes
