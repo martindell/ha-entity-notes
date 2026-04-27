@@ -800,7 +800,7 @@ class EntityNotesRenderView(HomeAssistantView):
 
     url = "/api/entity_notes/render"
     name = "api:entity_notes_render"
-    requires_auth = False
+    requires_auth = True
 
     async def post(self, request):
         """Render a template."""

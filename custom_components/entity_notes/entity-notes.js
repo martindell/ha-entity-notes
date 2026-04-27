@@ -61,6 +61,19 @@ class EntityNotesCard extends HTMLElement {
         return "User";
     }
 
+    get accessToken() {
+        try {
+            if (this.hass && this.hass.auth && this.hass.auth.data) return this.hass.auth.data.access_token;
+            const ha = document.querySelector('home-assistant');
+            if (ha && ha.hass && ha.hass.auth && ha.hass.auth.data) {
+                return ha.hass.auth.data.access_token;
+            }
+        } catch (e) {
+            debugLog('Entity Notes: Error getting access token: ' + e);
+        }
+        return null;
+    }
+
     connectedCallback() {
         debugLog('Entity Notes: EntityNotesCard connected');
         this.render();
@@ -846,9 +859,15 @@ class EntityNotesCard extends HTMLElement {
                 const type = this.getAttribute('type') || 'entity';
                 
                 try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    const token = this.accessToken;
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+
                     const response = await fetch('/api/entity_notes/render', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: headers,
                         body: JSON.stringify({ 
                             note: text,
                             entity_id: type === 'entity' ? itemId : undefined,

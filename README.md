@@ -16,7 +16,7 @@ A Home Assistant integration that allows you to add custom notes to any entity u
 - ⚙️ **Jinja2 Templates** - Power-user feature! Use HA templates (e.g., `{{ states('sensor.ip') }}`) that resolve dynamically
 - 🔍 **Smart Live Preview** - Instantly preview your rendered Markdown and Jinja2 code while typing
 - 🕒 **Last Modified Timestamps** - Automatically track exactly when a note was last updated
-- � **Persistent storage** - Notes are saved permanently and survive restarts
+- 📱 **Persistent storage** - Notes are saved permanently and survive restarts
 - 🎨 **Auto-resizing textarea** - Input field automatically adjusts to content size
 - 📱 **Responsive design** - Works on desktop and mobile
 - 🔒 **Local storage** - All data stays on your Home Assistant instance
