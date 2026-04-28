@@ -79,6 +79,7 @@ When you change any of these options, please reload the integration. HA only reg
 | Hide Buttons When Empty  | Hide Save/Delete buttons when no note exists | `false` | true/false |
 | Enable automatic backups | Include notes in HA backups                  | `true`  | true/false |
 | Maximum Note Length      | Character limit for notes                    | `200`   | 50-2000    |
+| Confirm Before Delete    | Show confirmation dialog before deleting a note | `true` | true/false |
 
 #### Enable Debug Logging
 
@@ -414,6 +415,7 @@ Get all notes (fires an event with the result).
 ## Contributors
 
 - [@Bjoern3D](https://github.com/Bjoern3D) - Markdown formatting toolbar (including inline code, code blocks, blockquotes, strikethrough, and link insertion), undo/redo functionality, toolbar visibility fix, and UX improvements
+- [@Bjoern3D](https://github.com/Bjoern3D) - Jinja2 template support, smart live preview with debounced backend rendering, last-modified timestamps, confirm-before-delete option, and mobile UI optimisations
 
 ## Contributing
 
