@@ -27,6 +27,7 @@ from .const import (
     CONF_DELETE_NOTES_WITH_DEVICE,
     CONF_ENABLE_DEVICE_NOTES,
     CONF_SHOW_MARKDOWN_TOOLBAR,
+    CONF_CONFIRM_DELETE,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
     DEFAULT_AUTO_BACKUP,
@@ -35,6 +36,7 @@ from .const import (
     DEFAULT_DELETE_NOTES_WITH_ENTITY,
     DEFAULT_DELETE_NOTES_WITH_DEVICE,
     DEFAULT_ENABLE_DEVICE_NOTES,
+    DEFAULT_CONFIRM_DELETE,
     DEFAULT_SHOW_MARKDOWN_TOOLBAR,
     FRONTEND_JS_PATH,
     EVENT_NOTES_UPDATED,
@@ -78,6 +80,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     delete_notes_with_device = options.get(CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE)
     enable_device_notes = options.get(CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES)
     show_markdown_toolbar = options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR)
+    confirm_delete = options.get(CONF_CONFIRM_DELETE, DEFAULT_CONFIRM_DELETE)
 
     if debug_logging:
         _LOGGER.setLevel(logging.DEBUG)
@@ -186,6 +189,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_DELETE_NOTES_WITH_DEVICE: delete_notes_with_device,
                 CONF_ENABLE_DEVICE_NOTES: enable_device_notes,
                 CONF_SHOW_MARKDOWN_TOOLBAR: show_markdown_toolbar,
+                CONF_CONFIRM_DELETE: confirm_delete,
             },
             "entry_id": entry.entry_id,
             "entity_listener_remove": None,  # Will store the entity event listener removal callable
@@ -199,6 +203,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if enable_device_notes:
             hass.http.register_view(DeviceNotesView())
             _LOGGER.debug("DeviceNotesView registered")
+
+        # Register the render view for Live Preview
+        hass.http.register_view(EntityNotesRenderView())
+        _LOGGER.debug("EntityNotesRenderView registered")
 
         # Register the JavaScript file serving view
         hass.http.register_view(EntityNotesJSView())
@@ -358,7 +366,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.warning("Note truncated to %d characters for %s", max_length, entity_id)
 
         if note.strip():
-            entity_notes_data[entity_id] = note.strip()
+            entity_notes_data[entity_id] = {
+                "text": note.strip(),
+                "updated_at": int(time.time())
+            }
             _LOGGER.info("Set note for %s", entity_id)
         else:
             entity_notes_data.pop(entity_id, None)
@@ -377,7 +388,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
             return
 
         entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        note = entity_notes_data.get(entity_id, "")
+        raw_note = entity_notes_data.get(entity_id, "")
+        note = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
 
         hass.bus.async_fire("entity_notes_get_response", {
             "entity_id": entity_id,
@@ -477,7 +489,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.warning("Note truncated to %d characters for device %s", max_length, device_id)
 
         if note.strip():
-            device_notes_data[device_id] = note.strip()
+            device_notes_data[device_id] = {
+                "text": note.strip(),
+                "updated_at": int(time.time())
+            }
             _LOGGER.info("Set note for device %s", device_id)
         else:
             device_notes_data.pop(device_id, None)
@@ -496,7 +511,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
             return
 
         device_notes_data = hass.data[DOMAIN]["device_notes"]
-        note = device_notes_data.get(device_id, "")
+        raw_note = device_notes_data.get(device_id, "")
+        note = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
 
         hass.bus.async_fire("device_notes_get_response", {
             "device_id": device_id,
@@ -552,13 +568,27 @@ class EntityNotesView(HomeAssistantView):
         """Get note for an entity."""
         hass = request.app["hass"]
         entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        note = entity_notes_data.get(entity_id, "")
+        raw_note = entity_notes_data.get(entity_id, "")
+        
+        note_text = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
+        updated_at = raw_note.get("updated_at") if isinstance(raw_note, dict) else None
+
+        rendered_note = note_text
+        if note_text:
+            try:
+                from homeassistant.helpers.template import Template
+                tpl = Template(note_text, hass)
+                user_name = request.query.get("user") or (request.get("hass_user").name if request.get("hass_user") else "User")
+                variables = {"entity_id": entity_id, "user": user_name}
+                rendered_note = str(tpl.async_render(variables, parse_result=False))
+            except Exception as e:
+                _LOGGER.warning("Failed to render template for %s: %s", entity_id, e)
 
         debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
         if debug_logging:
-            _LOGGER.debug("Retrieved note for %s: %s", entity_id, note[:50] + "..." if len(note) > 50 else note)
+            _LOGGER.debug("Retrieved note for %s: %s", entity_id, note_text[:50] + "..." if len(note_text) > 50 else note_text)
 
-        return web.json_response({"note": note})
+        return web.json_response({"note": note_text, "rendered_note": rendered_note, "updated_at": updated_at})
 
     async def post(self, request, entity_id):
         """Save note for an entity."""
@@ -576,10 +606,24 @@ class EntityNotesView(HomeAssistantView):
             if len(note) > max_length:
                 note = note[:max_length]
 
+            updated_at = None
+            rendered_note = note
             if note:
-                entity_notes_data[entity_id] = note
+                updated_at = int(time.time())
+                entity_notes_data[entity_id] = {
+                    "text": note,
+                    "updated_at": updated_at
+                }
                 if debug_logging:
                     _LOGGER.debug("Saved note for %s: %s", entity_id, note[:50] + "..." if len(note) > 50 else note)
+                try:
+                    from homeassistant.helpers.template import Template
+                    tpl = Template(note, hass)
+                    user_name = data.get("user_name") or (request.get("hass_user").name if request.get("hass_user") else "User")
+                    variables = {"entity_id": entity_id, "user": user_name}
+                    rendered_note = str(tpl.async_render(variables, parse_result=False))
+                except Exception as e:
+                    _LOGGER.warning("Failed to render template for %s: %s", entity_id, e)
             else:
                 # Remove empty notes
                 entity_notes_data.pop(entity_id, None)
@@ -595,7 +639,7 @@ class EntityNotesView(HomeAssistantView):
             # Fire event
             hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": note})
 
-            return web.json_response({"status": "success"})
+            return web.json_response({"status": "success", "updated_at": updated_at, "rendered_note": rendered_note})
 
         except Exception as e:
             _LOGGER.error("Error saving note for %s: %s", entity_id, e)
@@ -643,13 +687,27 @@ class DeviceNotesView(HomeAssistantView):
         """Get note for a device."""
         hass = request.app["hass"]
         device_notes_data = hass.data[DOMAIN]["device_notes"]
-        note = device_notes_data.get(device_id, "")
+        raw_note = device_notes_data.get(device_id, "")
+
+        note_text = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
+        updated_at = raw_note.get("updated_at") if isinstance(raw_note, dict) else None
+
+        rendered_note = note_text
+        if note_text:
+            try:
+                from homeassistant.helpers.template import Template
+                tpl = Template(note_text, hass)
+                user_name = request.query.get("user") or (request.get("hass_user").name if request.get("hass_user") else "User")
+                variables = {"device_id": device_id, "user": user_name}
+                rendered_note = str(tpl.async_render(variables, parse_result=False))
+            except Exception as e:
+                _LOGGER.warning("Failed to render template for device %s: %s", device_id, e)
 
         debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
         if debug_logging:
-            _LOGGER.debug("Retrieved note for device %s: %s", device_id, note[:50] + "..." if len(note) > 50 else note)
+            _LOGGER.debug("Retrieved note for device %s: %s", device_id, note_text[:50] + "..." if len(note_text) > 50 else note_text)
 
-        return web.json_response({"note": note})
+        return web.json_response({"note": note_text, "rendered_note": rendered_note, "updated_at": updated_at})
 
     async def post(self, request, device_id):
         """Save note for a device."""
@@ -667,10 +725,24 @@ class DeviceNotesView(HomeAssistantView):
             if len(note) > max_length:
                 note = note[:max_length]
 
+            updated_at = None
+            rendered_note = note
             if note:
-                device_notes_data[device_id] = note
+                updated_at = int(time.time())
+                device_notes_data[device_id] = {
+                    "text": note,
+                    "updated_at": updated_at
+                }
                 if debug_logging:
                     _LOGGER.debug("Saved note for device %s: %s", device_id, note[:50] + "..." if len(note) > 50 else note)
+                try:
+                    from homeassistant.helpers.template import Template
+                    tpl = Template(note, hass)
+                    user_name = data.get("user_name") or (request.get("hass_user").name if request.get("hass_user") else "User")
+                    variables = {"device_id": device_id, "user": user_name}
+                    rendered_note = str(tpl.async_render(variables, parse_result=False))
+                except Exception as e:
+                    _LOGGER.warning("Failed to render template for device %s: %s", device_id, e)
             else:
                 # Remove empty notes
                 device_notes_data.pop(device_id, None)
@@ -686,7 +758,7 @@ class DeviceNotesView(HomeAssistantView):
             # Fire event
             hass.bus.async_fire(EVENT_DEVICE_NOTES_UPDATED, {"device_id": device_id, "note": note})
 
-            return web.json_response({"status": "success"})
+            return web.json_response({"status": "success", "updated_at": updated_at, "rendered_note": rendered_note})
 
         except Exception as e:
             _LOGGER.error("Error saving note for device %s: %s", device_id, e)
@@ -723,6 +795,45 @@ class DeviceNotesView(HomeAssistantView):
             return web.json_response({"error": str(e)}, status=500)
 
 
+class EntityNotesRenderView(HomeAssistantView):
+    """Handle rendering Jinja2 templates for Live Preview."""
+
+    url = "/api/entity_notes/render"
+    name = "api:entity_notes_render"
+    requires_auth = True
+
+    async def post(self, request):
+        """Render a template."""
+        hass = request.app["hass"]
+        try:
+            data = await request.json()
+            note = data.get("note", "")
+            entity_id = data.get("entity_id")
+            device_id = data.get("device_id")
+
+            rendered_note = note
+            if note:
+                try:
+                    from homeassistant.helpers.template import Template
+                    tpl = Template(note, hass)
+                    user_name = data.get("user_name") or (request.get("hass_user").name if request.get("hass_user") else "User")
+                    variables = {"user": user_name}
+                    if entity_id:
+                        variables["entity_id"] = entity_id
+                    if device_id:
+                        variables["device_id"] = device_id
+                    rendered_note = str(tpl.async_render(variables, parse_result=False))
+                except Exception as e:
+                    _LOGGER.debug("Failed to render template during live preview: %s", e)
+                    rendered_note = note
+
+            return web.json_response({"rendered_note": rendered_note})
+
+        except Exception as e:
+            _LOGGER.error("Error rendering live preview: %s", e)
+            return web.json_response({"rendered_note": data.get("note", "") if "data" in locals() else ""}, status=500)
+
+
 class EntityNotesJSView(HomeAssistantView):
     """Serve the Entity Notes JavaScript file."""
 
@@ -739,6 +850,7 @@ class EntityNotesJSView(HomeAssistantView):
         hide_buttons_until_focus = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, False)
         enable_device_notes = hass.data[DOMAIN]["config"].get(CONF_ENABLE_DEVICE_NOTES, True)
         show_markdown_toolbar = hass.data[DOMAIN]["config"].get(CONF_SHOW_MARKDOWN_TOOLBAR, True)
+        confirm_delete = hass.data[DOMAIN]["config"].get(CONF_CONFIRM_DELETE, True)
 
         # Get the JavaScript file path
         js_file_path = Path(__file__).parent / FRONTEND_JS_PATH
@@ -757,9 +869,18 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{HIDE_BUTTONS_WHEN_EMPTY}}', str(hide_buttons_when_empty).lower())
             js_content = js_content.replace('{{HIDE_BUTTONS_UNTIL_FOCUS}}', str(hide_buttons_until_focus).lower())
             js_content = js_content.replace('{{ENABLE_DEVICE_NOTES}}', str(enable_device_notes).lower())
+            js_content = js_content.replace('{{CONFIRM_DELETE}}', str(confirm_delete).lower())
             js_content = js_content.replace('{{SHOW_MARKDOWN_TOOLBAR}}', str(show_markdown_toolbar).lower())
 
-            return web.Response(text=js_content, content_type='application/javascript')
+            return web.Response(
+                text=js_content,
+                content_type='application/javascript',
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
 
         except FileNotFoundError:
             _LOGGER.error("JavaScript file not found: %s", js_file_path)

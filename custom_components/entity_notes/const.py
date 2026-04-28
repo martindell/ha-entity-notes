@@ -16,6 +16,7 @@ CONF_DELETE_NOTES_WITH_ENTITY = "delete_notes_with_entity"
 CONF_DELETE_NOTES_WITH_DEVICE = "delete_notes_with_device"
 CONF_ENABLE_DEVICE_NOTES = "enable_device_notes"
 CONF_SHOW_MARKDOWN_TOOLBAR = "show_markdown_toolbar"
+CONF_CONFIRM_DELETE = "confirm_delete"
 
 # Events
 EVENT_NOTES_UPDATED = "entity_notes_updated"
@@ -45,6 +46,7 @@ DEFAULT_DELETE_NOTES_WITH_ENTITY = True
 DEFAULT_DELETE_NOTES_WITH_DEVICE = True
 DEFAULT_ENABLE_DEVICE_NOTES = True
 DEFAULT_SHOW_MARKDOWN_TOOLBAR = True
+DEFAULT_CONFIRM_DELETE = True
 
 # File paths
 FRONTEND_JS_PATH = "entity-notes.js"

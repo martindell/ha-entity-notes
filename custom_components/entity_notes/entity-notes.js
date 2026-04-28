@@ -8,6 +8,7 @@ window.entityNotes = {
     hideButtonsWhenEmpty: {{HIDE_BUTTONS_WHEN_EMPTY}},
     hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
+    confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
 
     // Convenience methods for users
@@ -41,7 +42,36 @@ class EntityNotesCard extends HTMLElement {
         this.isEditing = false;
         this.initialState = null;
         this.redoState = null;
+        this.isPreviewVisible = false;
+        this.updatedAt = null;
+        this.renderedNote = null;
         debugLog('Entity Notes: EntityNotesCard constructor called');
+    }
+
+    get currentUserName() {
+        try {
+            if (this.hass && this.hass.user) return this.hass.user.name;
+            const ha = document.querySelector('home-assistant');
+            if (ha && ha.hass && ha.hass.user) {
+                return ha.hass.user.name;
+            }
+        } catch (e) {
+            debugLog('Entity Notes: Error getting user name: ' + e);
+        }
+        return "User";
+    }
+
+    get accessToken() {
+        try {
+            if (this.hass && this.hass.auth && this.hass.auth.data) return this.hass.auth.data.access_token;
+            const ha = document.querySelector('home-assistant');
+            if (ha && ha.hass && ha.hass.auth && ha.hass.auth.data) {
+                return ha.hass.auth.data.access_token;
+            }
+        } catch (e) {
+            debugLog('Entity Notes: Error getting access token: ' + e);
+        }
+        return null;
     }
 
     connectedCallback() {
@@ -60,56 +90,68 @@ class EntityNotesCard extends HTMLElement {
                     border: none;
                     border-radius: 4px;
                     background: transparent;
+                    display: flex;
+                    flex-direction: column;
                 }
-                .entity-notes-view {
+                .entity-notes-view, .entity-notes-live-preview {
                     width: 100%;
                     min-height: 36px;
                     padding: 6px 8px;
-                    border: 1px solid var(--divider-color, #e0e0e0);
                     border-radius: 4px;
-                    background: var(--primary-background-color, white);
-                    color: var(--primary-text-color, black);
                     font-family: inherit;
                     font-size: 14px;
                     line-height: 1.4;
                     box-sizing: border-box;
-                    cursor: text;
                     word-wrap: break-word;
+                }
+                .entity-notes-view {
+                    border: 1px solid var(--divider-color, #e0e0e0);
+                    background: var(--primary-background-color, white);
+                    color: var(--primary-text-color, black);
+                    cursor: text;
+                    order: 1;
                 }
                 .entity-notes-view:hover {
                     border-color: var(--primary-color, #03a9f4);
                 }
-                .entity-notes-view a {
+                .entity-notes-live-preview {
+                    border: 1px dashed var(--primary-color, #03a9f4);
+                    background: var(--secondary-background-color, #f5f5f5);
+                    color: var(--primary-text-color, black);
+                    margin-top: 8px;
+                    order: 4;
+                }
+                .entity-notes-view a, .entity-notes-live-preview a {
                     color: var(--primary-color, #03a9f4);
                     text-decoration: underline;
                 }
-                .entity-notes-view a:hover {
+                .entity-notes-view a:hover, .entity-notes-live-preview a:hover {
                     color: var(--accent-color, #0288d1);
                 }
-                .entity-notes-view ul,
-                .entity-notes-view ol {
+                .entity-notes-view ul, .entity-notes-live-preview ul,
+                .entity-notes-view ol, .entity-notes-live-preview ol {
                     margin: 4px 0;
                     padding-left: 20px;
                 }
-                .entity-notes-view li {
+                .entity-notes-view li, .entity-notes-live-preview li {
                     margin: 2px 0;
                 }
-                .entity-notes-view h1 {
+                .entity-notes-view h1, .entity-notes-live-preview h1 {
                     font-size: 1.1em;
                     font-weight: bold;
                     margin: 6px 0 2px 0;
                 }
-                .entity-notes-view h2 {
+                .entity-notes-view h2, .entity-notes-live-preview h2 {
                     font-size: 1em;
                     font-weight: bold;
                     margin: 4px 0 2px 0;
                 }
-                .entity-notes-view hr {
+                .entity-notes-view hr, .entity-notes-live-preview hr {
                     border: none;
                     border-top: 1px solid var(--divider-color, #e0e0e0);
                     margin: 6px 0;
                 }
-                .entity-notes-view.hidden {
+                .entity-notes-view.hidden, .entity-notes-live-preview.hidden {
                     display: none;
                 }
                 .entity-notes-textarea {
@@ -127,8 +169,8 @@ class EntityNotesCard extends HTMLElement {
                     resize: none;
                     overflow: auto;
                     box-sizing: border-box;
-                    transition: height 0.1s ease;
                     outline: none;
+                    order: 3;
                 }
                 .entity-notes-textarea:focus {
                     border-color: var(--primary-color, #03a9f4);
@@ -143,6 +185,7 @@ class EntityNotesCard extends HTMLElement {
                     margin-top: 8px;
                     justify-content: flex-end;
                     transition: opacity 0.2s ease;
+                    order: 6;
                 }
                 .entity-notes-actions.hidden {
                     display: none;
@@ -164,11 +207,25 @@ class EntityNotesCard extends HTMLElement {
                     background: var(--error-color, #f44336);
                     color: white;
                 }
+                .entity-notes-footer {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-top: 4px;
+                    order: 5;
+                    flex-wrap: wrap;
+                }
+                .entity-notes-timestamp {
+                    font-size: 11px;
+                    color: var(--secondary-text-color, #666);
+                }
+                .entity-notes-timestamp.hidden {
+                    display: none;
+                }
                 .entity-notes-char-count {
                     font-size: 11px;
                     color: var(--secondary-text-color, #666);
-                    margin-top: 4px;
-                    text-align: right;
+                    margin-left: auto;
                 }
                 .entity-notes-char-count.warning {
                     color: var(--warning-color, #ff9800);
@@ -176,11 +233,34 @@ class EntityNotesCard extends HTMLElement {
                 .entity-notes-char-count.error {
                     color: var(--error-color, #f44336);
                 }
+                .entity-notes-edit-controls {
+                    display: flex;
+                    justify-content: flex-start;
+                    align-items: center;
+                    margin-bottom: 4px;
+                    order: 2;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                }
+                .entity-notes-edit-controls.hidden {
+                    display: none;
+                }
+                .entity-notes-persistent-toolbar {
+                    display: flex;
+                    gap: 4px;
+                    align-items: center;
+                }
+                .entity-notes-toolbar-separator {
+                    width: 1px;
+                    height: 20px;
+                    background-color: var(--divider-color, #e0e0e0);
+                    margin: 0 2px;
+                }
                 .entity-notes-markdown-toolbar {
                     display: flex;
-                    justify-content: flex-end;
+                    justify-content: flex-start;
+                    align-items: center;
                     gap: 4px;
-                    margin-bottom: 4px;
                     flex-wrap: wrap;
                 }
                 .entity-notes-markdown-toolbar.hidden {
@@ -217,10 +297,14 @@ class EntityNotesCard extends HTMLElement {
             </style>
             <div class="entity-notes-container">
                 <div class="entity-notes-view"></div>
-                <div class="entity-notes-markdown-toolbar hidden">
+                <div class="entity-notes-edit-controls hidden">
+                    <div class="entity-notes-persistent-toolbar">
+                        <button class="entity-notes-md-button" data-action="toggle-preview" title="Toggle Live Preview" style="width: auto; padding: 0 8px;" disabled>Preview</button>
+                    </div>
+                    <div class="entity-notes-markdown-toolbar hidden">
                     <button class="entity-notes-md-button" data-action="undo" title="Undo (Ctrl+Z)" disabled>↩</button>
                     <button class="entity-notes-md-button" data-action="redo" title="Redo (Ctrl+Y)" disabled>↪</button>
-                    <div style="width: 8px;"></div>
+                    <div class="entity-notes-toolbar-separator"></div>
                     <button class="entity-notes-md-button" data-format="h1" title="Heading 1">H1</button>
                     <button class="entity-notes-md-button" data-format="h2" title="Heading 2">H2</button>
                     <button class="entity-notes-md-button" data-format="bold" title="Bold"><b>B</b></button>
@@ -228,12 +312,13 @@ class EntityNotesCard extends HTMLElement {
                     <button class="entity-notes-md-button" data-format="ul" title="Bullet list">&bull;</button>
                     <button class="entity-notes-md-button" data-format="ol" title="Numbered list">1.</button>
                     <button class="entity-notes-md-button" data-format="hr" title="Divider">&mdash;</button>
-                    <div style="width: 8px;"></div>
+                    <div class="entity-notes-toolbar-separator"></div>
                     <button class="entity-notes-md-button" data-format="inline-code" title="Inline Code">\`</button>
                     <button class="entity-notes-md-button" data-format="code-block" title="Code Block">\`\`\`</button>
                     <button class="entity-notes-md-button" data-format="link" title="Insert Link">🔗</button>
                     <button class="entity-notes-md-button" data-format="blockquote" title="Blockquote">”</button>
                     <button class="entity-notes-md-button" data-format="strikethrough" title="Strikethrough">~</button>
+                </div>
                 </div>
                 <textarea
                     class="entity-notes-textarea"
@@ -241,7 +326,11 @@ class EntityNotesCard extends HTMLElement {
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
-                <div class="entity-notes-char-count">0/${maxLength}</div>
+                <div class="entity-notes-live-preview hidden"></div>
+                <div class="entity-notes-footer">
+                    <div class="entity-notes-timestamp hidden"></div>
+                    <div class="entity-notes-char-count">0/${maxLength}</div>
+                </div>
                 <div class="entity-notes-actions">
                     <button class="entity-notes-button entity-notes-delete">DELETE</button>
                     <button class="entity-notes-button entity-notes-save">SAVE</button>
@@ -389,9 +478,19 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const undoBtn = this.shadowRoot.querySelector('[data-action="undo"]');
         const redoBtn = this.shadowRoot.querySelector('[data-action="redo"]');
+        const previewBtn = this.shadowRoot.querySelector('[data-action="toggle-preview"]');
 
         if (undoBtn) undoBtn.disabled = textarea.value === this.initialState;
         if (redoBtn) redoBtn.disabled = this.redoState === null;
+
+        if (previewBtn) {
+            const isEmpty = textarea.value.trim().length === 0;
+            previewBtn.disabled = isEmpty;
+            
+            if (isEmpty && this.isPreviewVisible) {
+                this.togglePreview();
+            }
+        }
     }
 
     undo() {
@@ -420,6 +519,30 @@ class EntityNotesCard extends HTMLElement {
         // Trigger input event to update char count, resize, etc.
         element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
     }
+
+    formatTimestamp(unixTimestamp) {
+        if (!unixTimestamp) return '';
+        const date = new Date(unixTimestamp * 1000);
+        const formatter = new Intl.DateTimeFormat(navigator.language || 'en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        return formatter.format(date);
+    }
+
+    updateTimestampDisplay() {
+        const tsDiv = this.shadowRoot.querySelector('.entity-notes-timestamp');
+        if (this.updatedAt) {
+            tsDiv.textContent = `🕒 ${this.formatTimestamp(this.updatedAt)}`;
+            tsDiv.classList.remove('hidden');
+        } else {
+            tsDiv.classList.add('hidden');
+        }
+    }
+
     formatText(format) {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const start = textarea.selectionStart;
@@ -603,16 +726,17 @@ class EntityNotesCard extends HTMLElement {
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
         const saveBtn = this.shadowRoot.querySelector('.entity-notes-save');
         const deleteBtn = this.shadowRoot.querySelector('.entity-notes-delete');
+            const editControls = this.shadowRoot.querySelector('.entity-notes-edit-controls');
         const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
 
-        markdownToolbar.addEventListener('mousedown', (event) => {
+            editControls.addEventListener('mousedown', (event) => {
             const button = event.target.closest('.entity-notes-md-button');
             if (button) {
                 event.preventDefault(); // Prevent textarea from losing focus
             }
         });
 
-        markdownToolbar.addEventListener('click', (event) => {
+            editControls.addEventListener('click', (event) => {
             const button = event.target.closest('.entity-notes-md-button');
             if (!button) return;
 
@@ -622,6 +746,8 @@ class EntityNotesCard extends HTMLElement {
                 this.undo();
             } else if (button.dataset.action === 'redo') {
                 this.redo();
+                } else if (button.dataset.action === 'toggle-preview') {
+                    this.togglePreview();
             }
         });
 
@@ -630,6 +756,9 @@ class EntityNotesCard extends HTMLElement {
             this.autoResize();
             this.updateButtonVisibility();
             this.updateUndoRedoButtons();
+                if (this.isPreviewVisible) {
+                    this.updateLivePreview();
+                }
         });
 
         textarea.addEventListener('keydown', (event) => {
@@ -678,6 +807,91 @@ class EntityNotesCard extends HTMLElement {
         saveBtn.addEventListener('click', () => this.saveNote());
         deleteBtn.addEventListener('click', () => this.deleteNote());
     }
+
+        togglePreview() {
+            this.isPreviewVisible = !this.isPreviewVisible;
+            const previewDiv = this.shadowRoot.querySelector('.entity-notes-live-preview');
+            const previewBtn = this.shadowRoot.querySelector('[data-action="toggle-preview"]');
+
+            if (this.isPreviewVisible) {
+                previewDiv.classList.remove('hidden');
+                previewBtn.style.background = 'var(--primary-color, #03a9f4)';
+                previewBtn.style.color = 'white';
+                this.updateLivePreview();
+                debugLog('Entity Notes: Live preview enabled');
+            } else {
+                previewDiv.classList.add('hidden');
+                previewBtn.style.background = '';
+                previewBtn.style.color = '';
+                debugLog('Entity Notes: Live preview disabled');
+            }
+        }
+
+        updateLivePreview() {
+            const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+            const previewDiv = this.shadowRoot.querySelector('.entity-notes-live-preview');
+            const text = textarea.value.trim();
+
+            if (text.length === 0) {
+                previewDiv.innerHTML = '<em style="color: var(--secondary-text-color, #666);">Preview (empty)</em>';
+            return;
+        }
+        
+        // If unchanged from initial state, use the already resolved Jinja2 template
+        if (text === (this.initialState ? this.initialState.trim() : '') && this.renderedNote) {
+            previewDiv.innerHTML = this.renderMarkdown(this.renderedNote);
+            return;
+        }
+
+        // Live Jinja2 Rendering: Ask the backend to render if we detect template tags
+        if (text.includes('{{') || text.includes('{%')) {
+            // Immediately show unrendered text so typing doesn't feel sluggish
+            previewDiv.innerHTML = this.renderMarkdown(text);
+            
+            // Clear any existing timeout
+            if (this.previewDebounceTimer) {
+                clearTimeout(this.previewDebounceTimer);
+            }
+            
+            // Wait 500ms after the user stops typing to ping the backend
+            this.previewDebounceTimer = setTimeout(async () => {
+                const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
+                const type = this.getAttribute('type') || 'entity';
+                
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    const token = this.accessToken;
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+
+                    const response = await fetch('/api/entity_notes/render', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({ 
+                            note: text,
+                            entity_id: type === 'entity' ? itemId : undefined,
+                            device_id: type === 'device' ? itemId : undefined,
+                            user_name: this.currentUserName
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        // Double-check the user hasn't typed more while we were waiting
+                        if (textarea.value.trim() === text) {
+                            previewDiv.innerHTML = this.renderMarkdown(result.rendered_note || text);
+                        }
+                    }
+                } catch (error) {
+                    debugLog('Entity Notes: Failed to fetch live render: ' + error);
+                }
+            }, 500);
+        } else {
+            // Regular Markdown renders instantly
+            previewDiv.innerHTML = this.renderMarkdown(text);
+            }
+        }
 
     updateButtonVisibility() {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
@@ -752,9 +966,17 @@ class EntityNotesCard extends HTMLElement {
         textarea.classList.remove('hidden');
         charCount.style.display = 'block';
         
+        const editControls = this.shadowRoot.querySelector('.entity-notes-edit-controls');
+        editControls.classList.remove('hidden');
+        
         if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
             markdownToolbar.classList.remove('hidden');
         }
+
+            if (this.isPreviewVisible) {
+                this.shadowRoot.querySelector('.entity-notes-live-preview').classList.remove('hidden');
+                this.updateLivePreview();
+            }
 
         // Focus the textarea
         setTimeout(() => {
@@ -776,13 +998,19 @@ class EntityNotesCard extends HTMLElement {
         if (noteText.length > 0 && this.isEditing) {
             this.isEditing = false;
 
-            // Convert links to clickable format
-            viewDiv.innerHTML = this.renderMarkdown(noteText);
+            // Convert links to clickable format, use rendered Jinja2 template if unchanged
+            const textToRender = (noteText === (this.initialState ? this.initialState.trim() : '') && this.renderedNote) ? this.renderedNote : noteText;
+            viewDiv.innerHTML = this.renderMarkdown(textToRender);
 
             viewDiv.classList.remove('hidden');
             textarea.classList.add('hidden');
             charCount.style.display = 'none';
             markdownToolbar.classList.add('hidden');
+                this.shadowRoot.querySelector('.entity-notes-edit-controls').classList.add('hidden');
+
+                // Hide preview when in view mode
+                const previewDiv = this.shadowRoot.querySelector('.entity-notes-live-preview');
+                if (previewDiv) previewDiv.classList.add('hidden');
 
             debugLog('Entity Notes: Switched to view mode');
         } else if (noteText.length === 0) {
@@ -800,7 +1028,8 @@ class EntityNotesCard extends HTMLElement {
         if (!itemId) return;
 
         try {
-            const response = await fetch(`/api/${apiPath}/${itemId}`);
+            const userName = encodeURIComponent(this.currentUserName);
+            const response = await fetch(`/api/${apiPath}/${itemId}?user=${userName}`);
             const data = await response.json();
 
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
@@ -808,6 +1037,10 @@ class EntityNotesCard extends HTMLElement {
             const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
             const noteText = data.note || '';
             textarea.value = noteText;
+            this.renderedNote = data.rendered_note || noteText;
+
+            this.updatedAt = data.updated_at || null;
+            this.updateTimestampDisplay();
 
             // Track if there's an existing note
             this.hasExistingNote = noteText.length > 0;
@@ -821,16 +1054,18 @@ class EntityNotesCard extends HTMLElement {
 
             // Show in view mode if there's a note, edit mode if empty
             if (noteText.length > 0) {
-                viewDiv.innerHTML = this.renderMarkdown(noteText);
+                viewDiv.innerHTML = this.renderMarkdown(this.renderedNote);
                 viewDiv.classList.remove('hidden');
                 textarea.classList.add('hidden');
                 markdownToolbar.classList.add('hidden');
+                this.shadowRoot.querySelector('.entity-notes-edit-controls').classList.add('hidden');
                 this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'none';
                 this.isEditing = false;
             } else {
                 viewDiv.classList.add('hidden');
                 textarea.classList.remove('hidden');
                 
+                this.shadowRoot.querySelector('.entity-notes-edit-controls').classList.remove('hidden');
                 if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
                     markdownToolbar.classList.remove('hidden');
                 }
@@ -859,10 +1094,19 @@ class EntityNotesCard extends HTMLElement {
             const response = await fetch(`/api/${apiPath}/${itemId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note })
+                body: JSON.stringify({ 
+                    note,
+                    user_name: this.currentUserName
+                })
             });
 
             if (response.ok) {
+                const result = await response.json();
+                this.updatedAt = result.updated_at || Math.floor(Date.now() / 1000);
+                this.renderedNote = result.rendered_note || note;
+                this.initialState = note; // Update initial state so it matches the newly saved note
+                this.updateTimestampDisplay();
+
                 // Update the existing note status
                 this.hasExistingNote = note.length > 0;
                 this.updateButtonVisibility();
@@ -887,6 +1131,14 @@ class EntityNotesCard extends HTMLElement {
         const type = this.getAttribute('type') || 'entity';
         const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
 
+        // New confirmation logic
+        if (window.entityNotes.confirmDelete === true || window.entityNotes.confirmDelete === 'true') {
+            if (!confirm(`Are you sure you want to delete the note for ${type} ${itemId}?`)) {
+                debugLog(`Entity Notes: Delete cancelled for ${type} ${itemId}`); // User cancelled deletion
+                return;
+            }
+        }
+
         debugLog(`Entity Notes: Deleting note for ${type} ${itemId}`);
 
         try {
@@ -902,6 +1154,16 @@ class EntityNotesCard extends HTMLElement {
                 textarea.value = '';
                 viewDiv.innerHTML = '';
                 
+                this.updatedAt = null;
+                this.updateTimestampDisplay();
+                
+                // Ensure we return to empty edit mode cleanly
+                viewDiv.classList.add('hidden');
+                textarea.classList.remove('hidden');
+                this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'block';
+                this.isEditing = true;
+                
+                this.shadowRoot.querySelector('.entity-notes-edit-controls').classList.remove('hidden');
                 if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
                     markdownToolbar.classList.remove('hidden');
                 }
