@@ -57,6 +57,25 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
+NOTE_TARGETS = {
+    "entity": {
+        "store_key": "entity_notes",
+        "id_field": "entity_id",
+        "event": EVENT_NOTES_UPDATED,
+        "get_response_event": "entity_notes_get_response",
+        "list_response_event": "entity_notes_list_response",
+        "set_service": "set_note",
+    },
+    "device": {
+        "store_key": "device_notes",
+        "id_field": "device_id",
+        "event": EVENT_DEVICE_NOTES_UPDATED,
+        "get_response_event": "device_notes_get_response",
+        "list_response_event": "device_notes_list_response",
+        "set_service": "set_device_note",
+    },
+}
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Entity Notes integration from configuration.yaml."""
@@ -169,9 +188,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             import traceback
             _LOGGER.error("Full traceback:\n%s", traceback.format_exc())
             _LOGGER.error("=" * 80)
-            _LOGGER.warning("Could not load notes storage, starting fresh")
-            entity_notes_data = {}
-            device_notes_data = {}
+            _LOGGER.error(
+                "Entity Notes setup aborted to avoid overwriting existing note storage. "
+                "Check .storage/%s before reloading the integration.",
+                STORAGE_KEY,
+            )
+            return False
 
         # Store the configuration and data in hass.data
         hass.data.setdefault(DOMAIN, {})
@@ -344,80 +366,172 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
 
 
+def _note_target(note_type):
+    """Return metadata for entity or device notes."""
+    return NOTE_TARGETS[note_type]
+
+
+def _notes_data(hass: HomeAssistant, note_type):
+    """Return the in-memory notes dictionary for a note type."""
+    return hass.data[DOMAIN][_note_target(note_type)["store_key"]]
+
+
+def _note_log_target(note_type, item_id):
+    """Return a readable target for log messages."""
+    if note_type == "device":
+        return f"device {item_id}"
+    return item_id
+
+
+def _note_text_and_updated(raw_note):
+    """Normalize old string notes and current dict notes."""
+    if isinstance(raw_note, dict):
+        return raw_note.get("text", ""), raw_note.get("updated_at")
+    return raw_note, None
+
+
+async def _save_notes(hass: HomeAssistant) -> None:
+    """Persist entity and device notes together."""
+    await hass.data[DOMAIN]["store"].async_save({
+        "entity_notes": hass.data[DOMAIN]["entity_notes"],
+        "device_notes": hass.data[DOMAIN]["device_notes"],
+    })
+
+
+def _render_note(hass: HomeAssistant, note_type, item_id, note, user_name):
+    """Render a note as a Home Assistant template."""
+    rendered_note = note
+    if not note:
+        return rendered_note
+
+    target = _note_target(note_type)
+    try:
+        from homeassistant.helpers.template import Template
+        tpl = Template(note, hass)
+        variables = {target["id_field"]: item_id, "user": user_name}
+        rendered_note = str(tpl.async_render(variables, parse_result=False))
+    except Exception as e:
+        if note_type == "device":
+            _LOGGER.warning("Failed to render template for device %s: %s", item_id, e)
+        else:
+            _LOGGER.warning("Failed to render template for %s: %s", item_id, e)
+
+    return rendered_note
+
+
+def _log_note_change(hass: HomeAssistant, log_changes, message, *args) -> None:
+    """Log service changes at info level and REST changes only in debug mode."""
+    if log_changes:
+        _LOGGER.info(message, *args)
+    elif hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]:
+        _LOGGER.debug(message, *args)
+
+
+async def _set_note(hass: HomeAssistant, note_type, item_id, note, log_changes=True):
+    """Set or remove a note and return its saved state."""
+    target = _note_target(note_type)
+    notes_data = _notes_data(hass, note_type)
+    max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
+    note = str(note or "")
+
+    if len(note) > max_length:
+        note = note[:max_length]
+        _LOGGER.warning(
+            "Note truncated to %d characters for %s",
+            max_length,
+            _note_log_target(note_type, item_id),
+        )
+
+    note_text = note.strip()
+    updated_at = None
+    if note_text:
+        updated_at = int(time.time())
+        notes_data[item_id] = {
+            "text": note_text,
+            "updated_at": updated_at,
+        }
+        _log_note_change(hass, log_changes, "Set note for %s", _note_log_target(note_type, item_id))
+    else:
+        notes_data.pop(item_id, None)
+        _log_note_change(hass, log_changes, "Removed note for %s", _note_log_target(note_type, item_id))
+
+    await _save_notes(hass)
+    hass.bus.async_fire(target["event"], {target["id_field"]: item_id, "note": note_text})
+    return note_text, updated_at
+
+
+async def _delete_note(hass: HomeAssistant, note_type, item_id, log_changes=True):
+    """Delete a note if it exists."""
+    target = _note_target(note_type)
+    notes_data = _notes_data(hass, note_type)
+    if item_id not in notes_data:
+        return False
+
+    del notes_data[item_id]
+    await _save_notes(hass)
+    hass.bus.async_fire(target["event"], {target["id_field"]: item_id, "note": ""})
+    _log_note_change(hass, log_changes, "Deleted note for %s", _note_log_target(note_type, item_id))
+    return True
+
+
 async def async_register_services(hass: HomeAssistant) -> None:
     """Register the Entity Notes services."""
 
-    async def set_note_service(call):
-        """Set a note for an entity."""
-        entity_id = call.data.get("entity_id")
-        note = call.data.get("note", "")
-
-        if not entity_id:
-            _LOGGER.error("No entity_id provided for set_note service")
+    async def handle_set_note_service(call, note_type):
+        """Set a note for an entity or device."""
+        target = _note_target(note_type)
+        item_id = call.data.get(target["id_field"])
+        if not item_id:
+            _LOGGER.error("No %s provided for %s service", target["id_field"], target["set_service"])
             return
 
-        store = hass.data[DOMAIN]["store"]
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
+        await _set_note(hass, note_type, item_id, call.data.get("note", ""))
 
-        # Truncate note if too long
-        if len(note) > max_length:
-            note = note[:max_length]
-            _LOGGER.warning("Note truncated to %d characters for %s", max_length, entity_id)
+    async def handle_get_note_service(call, note_type):
+        """Get a note for an entity or device."""
+        target = _note_target(note_type)
+        item_id = call.data.get(target["id_field"])
+        if not item_id:
+            return
 
-        if note.strip():
-            entity_notes_data[entity_id] = {
-                "text": note.strip(),
-                "updated_at": int(time.time())
-            }
-            _LOGGER.info("Set note for %s", entity_id)
-        else:
-            entity_notes_data.pop(entity_id, None)
-            _LOGGER.info("Removed note for %s", entity_id)
-
-        await store.async_save({
-            "entity_notes": entity_notes_data,
-            "device_notes": hass.data[DOMAIN]["device_notes"]
+        raw_note = _notes_data(hass, note_type).get(item_id, "")
+        note, _updated_at = _note_text_and_updated(raw_note)
+        hass.bus.async_fire(target["get_response_event"], {
+            target["id_field"]: item_id,
+            "note": note,
         })
-        hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": note})
+
+    async def handle_delete_note_service(call, note_type):
+        """Delete a note for an entity or device."""
+        target = _note_target(note_type)
+        item_id = call.data.get(target["id_field"])
+        if not item_id:
+            return
+
+        await _delete_note(hass, note_type, item_id)
+
+    async def handle_list_notes_service(call, note_type):
+        """List all notes for a note type."""
+        target = _note_target(note_type)
+        hass.bus.async_fire(target["list_response_event"], {
+            "notes": dict(_notes_data(hass, note_type)),
+        })
+
+    async def set_note_service(call):
+        """Set a note for an entity."""
+        await handle_set_note_service(call, "entity")
 
     async def get_note_service(call):
         """Get a note for an entity."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            return
-
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        raw_note = entity_notes_data.get(entity_id, "")
-        note = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
-
-        hass.bus.async_fire("entity_notes_get_response", {
-            "entity_id": entity_id,
-            "note": note
-        })
+        await handle_get_note_service(call, "entity")
 
     async def delete_note_service(call):
         """Delete a note for an entity."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            return
-
-        store = hass.data[DOMAIN]["store"]
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-
-        if entity_id in entity_notes_data:
-            del entity_notes_data[entity_id]
-            await store.async_save({
-                "entity_notes": entity_notes_data,
-                "device_notes": hass.data[DOMAIN]["device_notes"]
-            })
-            hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": ""})
-            _LOGGER.info("Deleted note for %s", entity_id)
+        await handle_delete_note_service(call, "entity")
 
     async def list_notes_service(call):
         """List all entity notes."""
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        hass.bus.async_fire("entity_notes_list_response", {"notes": dict(entity_notes_data)})
+        await handle_list_notes_service(call, "entity")
 
     async def backup_notes_service(call):
         """Backup all notes to a file."""
@@ -469,78 +583,21 @@ async def async_register_services(hass: HomeAssistant) -> None:
         except Exception as e:
             _LOGGER.error("Failed to restore notes: %s", e)
 
-    # Device note services
     async def set_device_note_service(call):
         """Set a note for a device."""
-        device_id = call.data.get("device_id")
-        note = call.data.get("note", "")
-
-        if not device_id:
-            _LOGGER.error("No device_id provided for set_device_note service")
-            return
-
-        store = hass.data[DOMAIN]["store"]
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-        max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
-
-        # Truncate note if too long
-        if len(note) > max_length:
-            note = note[:max_length]
-            _LOGGER.warning("Note truncated to %d characters for device %s", max_length, device_id)
-
-        if note.strip():
-            device_notes_data[device_id] = {
-                "text": note.strip(),
-                "updated_at": int(time.time())
-            }
-            _LOGGER.info("Set note for device %s", device_id)
-        else:
-            device_notes_data.pop(device_id, None)
-            _LOGGER.info("Removed note for device %s", device_id)
-
-        await store.async_save({
-            "entity_notes": hass.data[DOMAIN]["entity_notes"],
-            "device_notes": device_notes_data
-        })
-        hass.bus.async_fire(EVENT_DEVICE_NOTES_UPDATED, {"device_id": device_id, "note": note})
+        await handle_set_note_service(call, "device")
 
     async def get_device_note_service(call):
         """Get a note for a device."""
-        device_id = call.data.get("device_id")
-        if not device_id:
-            return
-
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-        raw_note = device_notes_data.get(device_id, "")
-        note = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
-
-        hass.bus.async_fire("device_notes_get_response", {
-            "device_id": device_id,
-            "note": note
-        })
+        await handle_get_note_service(call, "device")
 
     async def delete_device_note_service(call):
         """Delete a note for a device."""
-        device_id = call.data.get("device_id")
-        if not device_id:
-            return
-
-        store = hass.data[DOMAIN]["store"]
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-
-        if device_id in device_notes_data:
-            del device_notes_data[device_id]
-            await store.async_save({
-                "entity_notes": hass.data[DOMAIN]["entity_notes"],
-                "device_notes": device_notes_data
-            })
-            hass.bus.async_fire(EVENT_DEVICE_NOTES_UPDATED, {"device_id": device_id, "note": ""})
-            _LOGGER.info("Deleted note for device %s", device_id)
+        await handle_delete_note_service(call, "device")
 
     async def list_device_notes_service(call):
         """List all device notes."""
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-        hass.bus.async_fire("device_notes_list_response", {"notes": dict(device_notes_data)})
+        await handle_list_notes_service(call, "device")
 
     # Register entity services
     hass.services.async_register(DOMAIN, SERVICE_SET_NOTE, set_note_service)
@@ -557,242 +614,117 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_LIST_DEVICE_NOTES, list_device_notes_service)
 
 
-class EntityNotesView(HomeAssistantView):
+class NotesView(HomeAssistantView):
+    """Shared API handling for entity and device notes."""
+
+    requires_auth = True
+    note_type = None
+
+    async def _get(self, request, item_id):
+        """Get a note."""
+        hass = request.app["hass"]
+        raw_note = _notes_data(hass, self.note_type).get(item_id, "")
+        note_text, updated_at = _note_text_and_updated(raw_note)
+
+        user_name = request.query.get("user") or (
+            request.get("hass_user").name if request.get("hass_user") else "User"
+        )
+        rendered_note = _render_note(hass, self.note_type, item_id, note_text, user_name)
+
+        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
+        if debug_logging:
+            _LOGGER.debug(
+                "Retrieved note for %s: %s",
+                _note_log_target(self.note_type, item_id),
+                note_text[:50] + "..." if len(note_text) > 50 else note_text,
+            )
+
+        return web.json_response({
+            "note": note_text,
+            "rendered_note": rendered_note,
+            "updated_at": updated_at,
+        })
+
+    async def _post(self, request, item_id):
+        """Save a note."""
+        hass = request.app["hass"]
+
+        try:
+            data = await request.json()
+            note, updated_at = await _set_note(
+                hass,
+                self.note_type,
+                item_id,
+                data.get("note", ""),
+                log_changes=False,
+            )
+            user_name = data.get("user_name") or (
+                request.get("hass_user").name if request.get("hass_user") else "User"
+            )
+            rendered_note = _render_note(hass, self.note_type, item_id, note, user_name)
+
+            return web.json_response({
+                "status": "success",
+                "updated_at": updated_at,
+                "rendered_note": rendered_note,
+            })
+
+        except Exception as e:
+            _LOGGER.error("Error saving note for %s: %s", _note_log_target(self.note_type, item_id), e)
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def _delete(self, request, item_id):
+        """Delete a note."""
+        hass = request.app["hass"]
+
+        try:
+            if await _delete_note(hass, self.note_type, item_id, log_changes=False):
+                return web.json_response({"status": "deleted"})
+            return web.json_response({"status": "not_found"}, status=404)
+
+        except Exception as e:
+            _LOGGER.error("Error deleting note for %s: %s", _note_log_target(self.note_type, item_id), e)
+            return web.json_response({"error": str(e)}, status=500)
+
+
+class EntityNotesView(NotesView):
     """Handle Entity Notes API requests."""
 
     url = "/api/entity_notes/{entity_id}"
     name = "api:entity_notes"
-    requires_auth = False  # Local requests only
+    note_type = "entity"
 
     async def get(self, request, entity_id):
         """Get note for an entity."""
-        hass = request.app["hass"]
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        raw_note = entity_notes_data.get(entity_id, "")
-        
-        note_text = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
-        updated_at = raw_note.get("updated_at") if isinstance(raw_note, dict) else None
-
-        rendered_note = note_text
-        if note_text:
-            try:
-                from homeassistant.helpers.template import Template
-                tpl = Template(note_text, hass)
-                user_name = request.query.get("user") or (request.get("hass_user").name if request.get("hass_user") else "User")
-                variables = {"entity_id": entity_id, "user": user_name}
-                rendered_note = str(tpl.async_render(variables, parse_result=False))
-            except Exception as e:
-                _LOGGER.warning("Failed to render template for %s: %s", entity_id, e)
-
-        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
-        if debug_logging:
-            _LOGGER.debug("Retrieved note for %s: %s", entity_id, note_text[:50] + "..." if len(note_text) > 50 else note_text)
-
-        return web.json_response({"note": note_text, "rendered_note": rendered_note, "updated_at": updated_at})
+        return await self._get(request, entity_id)
 
     async def post(self, request, entity_id):
         """Save note for an entity."""
-        hass = request.app["hass"]
-        store = hass.data[DOMAIN]["store"]
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
-        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
-
-        try:
-            data = await request.json()
-            note = data.get("note", "").strip()
-
-            # Enforce max length
-            if len(note) > max_length:
-                note = note[:max_length]
-
-            updated_at = None
-            rendered_note = note
-            if note:
-                updated_at = int(time.time())
-                entity_notes_data[entity_id] = {
-                    "text": note,
-                    "updated_at": updated_at
-                }
-                if debug_logging:
-                    _LOGGER.debug("Saved note for %s: %s", entity_id, note[:50] + "..." if len(note) > 50 else note)
-                try:
-                    from homeassistant.helpers.template import Template
-                    tpl = Template(note, hass)
-                    user_name = data.get("user_name") or (request.get("hass_user").name if request.get("hass_user") else "User")
-                    variables = {"entity_id": entity_id, "user": user_name}
-                    rendered_note = str(tpl.async_render(variables, parse_result=False))
-                except Exception as e:
-                    _LOGGER.warning("Failed to render template for %s: %s", entity_id, e)
-            else:
-                # Remove empty notes
-                entity_notes_data.pop(entity_id, None)
-                if debug_logging:
-                    _LOGGER.debug("Removed empty note for %s", entity_id)
-
-            # Save to persistent storage
-            await store.async_save({
-                "entity_notes": entity_notes_data,
-                "device_notes": hass.data[DOMAIN]["device_notes"]
-            })
-
-            # Fire event
-            hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": note})
-
-            return web.json_response({"status": "success", "updated_at": updated_at, "rendered_note": rendered_note})
-
-        except Exception as e:
-            _LOGGER.error("Error saving note for %s: %s", entity_id, e)
-            return web.json_response({"error": str(e)}, status=500)
+        return await self._post(request, entity_id)
 
     async def delete(self, request, entity_id):
         """Delete note for an entity."""
-        hass = request.app["hass"]
-        store = hass.data[DOMAIN]["store"]
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
-
-        try:
-            if entity_id in entity_notes_data:
-                del entity_notes_data[entity_id]
-                if debug_logging:
-                    _LOGGER.debug("Deleted note for %s", entity_id)
-
-                # Save to persistent storage
-                await store.async_save({
-                    "entity_notes": entity_notes_data,
-                    "device_notes": hass.data[DOMAIN]["device_notes"]
-                })
-
-                # Fire event
-                hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": ""})
-
-                return web.json_response({"status": "deleted"})
-            else:
-                return web.json_response({"status": "not_found"}, status=404)
-
-        except Exception as e:
-            _LOGGER.error("Error deleting note for %s: %s", entity_id, e)
-            return web.json_response({"error": str(e)}, status=500)
+        return await self._delete(request, entity_id)
 
 
-class DeviceNotesView(HomeAssistantView):
+class DeviceNotesView(NotesView):
     """Handle Device Notes API requests."""
 
     url = "/api/device_notes/{device_id}"
     name = "api:device_notes"
-    requires_auth = False  # Local requests only
+    note_type = "device"
 
     async def get(self, request, device_id):
         """Get note for a device."""
-        hass = request.app["hass"]
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-        raw_note = device_notes_data.get(device_id, "")
-
-        note_text = raw_note.get("text", "") if isinstance(raw_note, dict) else raw_note
-        updated_at = raw_note.get("updated_at") if isinstance(raw_note, dict) else None
-
-        rendered_note = note_text
-        if note_text:
-            try:
-                from homeassistant.helpers.template import Template
-                tpl = Template(note_text, hass)
-                user_name = request.query.get("user") or (request.get("hass_user").name if request.get("hass_user") else "User")
-                variables = {"device_id": device_id, "user": user_name}
-                rendered_note = str(tpl.async_render(variables, parse_result=False))
-            except Exception as e:
-                _LOGGER.warning("Failed to render template for device %s: %s", device_id, e)
-
-        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
-        if debug_logging:
-            _LOGGER.debug("Retrieved note for device %s: %s", device_id, note_text[:50] + "..." if len(note_text) > 50 else note_text)
-
-        return web.json_response({"note": note_text, "rendered_note": rendered_note, "updated_at": updated_at})
+        return await self._get(request, device_id)
 
     async def post(self, request, device_id):
         """Save note for a device."""
-        hass = request.app["hass"]
-        store = hass.data[DOMAIN]["store"]
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-        max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
-        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
-
-        try:
-            data = await request.json()
-            note = data.get("note", "").strip()
-
-            # Enforce max length
-            if len(note) > max_length:
-                note = note[:max_length]
-
-            updated_at = None
-            rendered_note = note
-            if note:
-                updated_at = int(time.time())
-                device_notes_data[device_id] = {
-                    "text": note,
-                    "updated_at": updated_at
-                }
-                if debug_logging:
-                    _LOGGER.debug("Saved note for device %s: %s", device_id, note[:50] + "..." if len(note) > 50 else note)
-                try:
-                    from homeassistant.helpers.template import Template
-                    tpl = Template(note, hass)
-                    user_name = data.get("user_name") or (request.get("hass_user").name if request.get("hass_user") else "User")
-                    variables = {"device_id": device_id, "user": user_name}
-                    rendered_note = str(tpl.async_render(variables, parse_result=False))
-                except Exception as e:
-                    _LOGGER.warning("Failed to render template for device %s: %s", device_id, e)
-            else:
-                # Remove empty notes
-                device_notes_data.pop(device_id, None)
-                if debug_logging:
-                    _LOGGER.debug("Removed empty note for device %s", device_id)
-
-            # Save to persistent storage
-            await store.async_save({
-                "entity_notes": hass.data[DOMAIN]["entity_notes"],
-                "device_notes": device_notes_data
-            })
-
-            # Fire event
-            hass.bus.async_fire(EVENT_DEVICE_NOTES_UPDATED, {"device_id": device_id, "note": note})
-
-            return web.json_response({"status": "success", "updated_at": updated_at, "rendered_note": rendered_note})
-
-        except Exception as e:
-            _LOGGER.error("Error saving note for device %s: %s", device_id, e)
-            return web.json_response({"error": str(e)}, status=500)
+        return await self._post(request, device_id)
 
     async def delete(self, request, device_id):
         """Delete note for a device."""
-        hass = request.app["hass"]
-        store = hass.data[DOMAIN]["store"]
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
-        debug_logging = hass.data[DOMAIN]["config"][CONF_DEBUG_LOGGING]
-
-        try:
-            if device_id in device_notes_data:
-                del device_notes_data[device_id]
-                if debug_logging:
-                    _LOGGER.debug("Deleted note for device %s", device_id)
-
-                # Save to persistent storage
-                await store.async_save({
-                    "entity_notes": hass.data[DOMAIN]["entity_notes"],
-                    "device_notes": device_notes_data
-                })
-
-                # Fire event
-                hass.bus.async_fire(EVENT_DEVICE_NOTES_UPDATED, {"device_id": device_id, "note": ""})
-
-                return web.json_response({"status": "deleted"})
-            else:
-                return web.json_response({"status": "not_found"}, status=404)
-
-        except Exception as e:
-            _LOGGER.error("Error deleting note for device %s: %s", device_id, e)
-            return web.json_response({"error": str(e)}, status=500)
+        return await self._delete(request, device_id)
 
 
 class EntityNotesRenderView(HomeAssistantView):

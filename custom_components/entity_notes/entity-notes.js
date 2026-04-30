@@ -74,6 +74,20 @@ class EntityNotesCard extends HTMLElement {
         return null;
     }
 
+    apiHeaders(includeContentType = false) {
+        const headers = {};
+        if (includeContentType) {
+            headers['Content-Type'] = 'application/json';
+        }
+
+        const token = this.accessToken;
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return headers;
+    }
+
     connectedCallback() {
         debugLog('Entity Notes: EntityNotesCard connected');
         this.render();
@@ -346,16 +360,33 @@ class EntityNotesCard extends HTMLElement {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
 
+        const renderSafeLink = (url, label) => {
+            let parsedUrl;
+            try {
+                parsedUrl = new URL(url.trim(), window.location.origin);
+            } catch (error) {
+                return escapeHtml(label);
+            }
+
+            const allowedProtocols = ['http:', 'https:', 'mailto:'];
+            if (!allowedProtocols.includes(parsedUrl.protocol)) {
+                return escapeHtml(label);
+            }
+
+            const safeUrl = escapeHtml(url);
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+        };
+
         // Single-pass inline processor: finds the earliest pattern match,
         // escapes the literal text before it, renders the match, then continues.
         const processInline = (raw) => {
             const inlinePatterns = [
-                { re: /\[(.*?)\]\((.*?)\)/, render: (m) => `<a href="${escapeHtml(m[2])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[1])}</a>` }, // text
+                { re: /\[([^\]]+)\]\(((?:[^()\s]+|\([^)]*\))+)\)/, render: (m) => renderSafeLink(m[2], m[1]) },
                 { re: /\*\*(.+?)\*\*/, render: (m) => `<strong>${escapeHtml(m[1])}</strong>` },
                 { re: /\*(.+?)\*/,     render: (m) => `<em>${escapeHtml(m[1])}</em>` },
                 { re: /`(.+?)`/,       render: (m) => `<code>${escapeHtml(m[1])}</code>` }, // Inline code
                 { re: /~(.+?)~/,       render: (m) => `<del>${escapeHtml(m[1])}</del>` }, // Strikethrough
-                { re: /https?:\/\/[^\s]+/, render: (m) => `<a href="${escapeHtml(m[0])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[0])}</a>` },
+                { re: /https?:\/\/[^\s]+/, render: (m) => renderSafeLink(m[0], m[0]) },
             ];
 
             let result = '';
@@ -859,15 +890,9 @@ class EntityNotesCard extends HTMLElement {
                 const type = this.getAttribute('type') || 'entity';
                 
                 try {
-                    const headers = { 'Content-Type': 'application/json' };
-                    const token = this.accessToken;
-                    if (token) {
-                        headers['Authorization'] = `Bearer ${token}`;
-                    }
-
                     const response = await fetch('/api/entity_notes/render', {
                         method: 'POST',
-                        headers: headers,
+                        headers: this.apiHeaders(true),
                         body: JSON.stringify({ 
                             note: text,
                             entity_id: type === 'entity' ? itemId : undefined,
@@ -1029,7 +1054,12 @@ class EntityNotesCard extends HTMLElement {
 
         try {
             const userName = encodeURIComponent(this.currentUserName);
-            const response = await fetch(`/api/${apiPath}/${itemId}?user=${userName}`);
+            const response = await fetch(`/api/${apiPath}/${itemId}?user=${userName}`, {
+                headers: this.apiHeaders()
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
             const data = await response.json();
 
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
@@ -1093,7 +1123,7 @@ class EntityNotesCard extends HTMLElement {
         try {
             const response = await fetch(`/api/${apiPath}/${itemId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.apiHeaders(true),
                 body: JSON.stringify({ 
                     note,
                     user_name: this.currentUserName
@@ -1143,7 +1173,8 @@ class EntityNotesCard extends HTMLElement {
 
         try {
             const response = await fetch(`/api/${apiPath}/${itemId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: this.apiHeaders()
             });
 
             if (response.ok) {
