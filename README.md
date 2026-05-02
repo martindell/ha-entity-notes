@@ -110,16 +110,33 @@ The following template variables are available when relevant:
 
 ## Configuration
 
+Options are grouped into three sections in the integration settings.
+
+### Display
+
+| Option | Default | Description |
+| --- | --- | --- |
+| Show Markdown toolbar | `true` | Show formatting controls in the note editor |
+| Hide the Preview button | `false` | Remove the live preview toggle from the editor |
+| Hide markdown hints until note is clicked | `false` | Show a simple placeholder until editing starts, then reveal full syntax hints |
+| Hide last modified date | `false` | Hide the timestamp shown below each note |
+
+### Behaviour
+
+| Option | Default | Description |
+| --- | --- | --- |
+| Hide buttons when no note exists | `true` | Hide Save/Delete until there is note content |
+| Hide buttons until focus | `false` | Show Save/Delete only while editing |
+| Confirm before delete | `true` | Ask before deleting a note |
+| Delete notes with entity | `true` | Remove an entity note when the entity is removed |
+
+### Advanced
+
 | Option | Default | Description |
 | --- | --- | --- |
 | Debug logging | `false` | Enable detailed logs for troubleshooting |
 | Maximum note length | `200` | Character limit for each note, from 50 to 2000 |
 | Enable automatic backups | `true` | Include notes in Home Assistant backups |
-| Hide buttons when no note exists | `true` | Hide Save/Delete until there is note content |
-| Hide buttons until focus | `false` | Show Save/Delete only while editing |
-| Delete notes with entity | `true` | Remove an entity note when the entity is removed |
-| Show Markdown toolbar | `true` | Show formatting controls in the note editor |
-| Confirm before delete | `true` | Ask before deleting a note |
 
 ## Services
 

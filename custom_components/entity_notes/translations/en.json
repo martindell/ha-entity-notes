@@ -4,29 +4,65 @@
       "user": {
         "title": "Entity Notes Configuration",
         "description": "{description}",
-        "data": {
-          "debug_logging": "Enable debug logging",
-          "max_note_length": "Maximum note length (50-2000 characters)",
-          "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists",
-          "delete_notes_with_entity": "Automatically delete notes when entities are removed",
-          "hide_buttons_until_focus": "Hide buttons unless text area is focused",
-          "show_markdown_toolbar": "Show markdown formatting toolbar",
-          "confirm_delete": "Confirm before deleting a note"
+        "sections": {
+          "display": {
+            "name": "Display",
+            "data": {
+              "show_markdown_toolbar": "Show markdown formatting toolbar",
+              "hide_preview_button": "Hide the Preview button",
+              "hide_markdown_hints": "Hide markdown hints until note is clicked",
+              "hide_last_modified": "Hide last modified date"
+            }
+          },
+          "behaviour": {
+            "name": "Behaviour",
+            "data": {
+              "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists",
+              "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+              "confirm_delete": "Confirm before deleting a note",
+              "delete_notes_with_entity": "Automatically delete notes when entities are removed"
+            }
+          },
+          "advanced": {
+            "name": "Advanced",
+            "data": {
+              "debug_logging": "Enable debug logging",
+              "max_note_length": "Maximum note length (50-2000 characters)",
+              "auto_backup": "Enable automatic backups"
+            }
+          }
         }
       },
       "reconfigure": {
         "title": "Reconfigure Entity Notes",
         "description": "{description}",
-        "data": {
-          "debug_logging": "Enable debug logging",
-          "max_note_length": "Maximum note length (50-2000 characters)",
-          "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "delete_notes_with_entity": "Automatically delete notes when entities are removed",
-          "hide_buttons_until_focus": "Hide buttons unless text area is focused",
-          "show_markdown_toolbar": "Show markdown formatting toolbar",
-          "confirm_delete": "Confirm before deleting a note"
+        "sections": {
+          "display": {
+            "name": "Display",
+            "data": {
+              "show_markdown_toolbar": "Show markdown formatting toolbar",
+              "hide_preview_button": "Hide the Preview button",
+              "hide_markdown_hints": "Hide markdown hints until note is clicked",
+              "hide_last_modified": "Hide last modified date"
+            }
+          },
+          "behaviour": {
+            "name": "Behaviour",
+            "data": {
+              "hide_buttons_when_empty": "Hide buttons when no note exists",
+              "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+              "confirm_delete": "Confirm before deleting a note",
+              "delete_notes_with_entity": "Automatically delete notes when entities are removed"
+            }
+          },
+          "advanced": {
+            "name": "Advanced",
+            "data": {
+              "debug_logging": "Enable debug logging",
+              "max_note_length": "Maximum note length (50-2000 characters)",
+              "auto_backup": "Enable automatic backups"
+            }
+          }
         }
       }
     },
@@ -44,15 +80,33 @@
       "init": {
         "title": "Entity Notes Options",
         "description": "{description}\n\nNote: after saving, reload the integration and do a hard browser refresh (Ctrl+Shift+R / Cmd+Shift+R) for display changes to take effect.",
-        "data": {
-          "debug_logging": "Enable debug logging",
-          "max_note_length": "Maximum note length (50-2000 characters)",
-          "auto_backup": "Enable automatic backups",
-          "hide_buttons_when_empty": "Hide buttons when no note exists",
-          "delete_notes_with_entity": "Automatically delete notes when entities are removed",
-          "hide_buttons_until_focus": "Hide buttons unless text area is focused",
-          "show_markdown_toolbar": "Show markdown formatting toolbar",
-          "confirm_delete": "Confirm before deleting a note"
+        "sections": {
+          "display": {
+            "name": "Display",
+            "data": {
+              "show_markdown_toolbar": "Show markdown formatting toolbar",
+              "hide_preview_button": "Hide the Preview button",
+              "hide_markdown_hints": "Hide markdown hints until note is clicked",
+              "hide_last_modified": "Hide last modified date"
+            }
+          },
+          "behaviour": {
+            "name": "Behaviour",
+            "data": {
+              "hide_buttons_when_empty": "Hide buttons when no note exists",
+              "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+              "confirm_delete": "Confirm before deleting a note",
+              "delete_notes_with_entity": "Automatically delete notes when entities are removed"
+            }
+          },
+          "advanced": {
+            "name": "Advanced",
+            "data": {
+              "debug_logging": "Enable debug logging",
+              "max_note_length": "Maximum note length (50-2000 characters)",
+              "auto_backup": "Enable automatic backups"
+            }
+          }
         }
       }
     },

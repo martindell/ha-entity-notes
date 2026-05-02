@@ -10,6 +10,9 @@ window.entityNotes = {
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
     confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
+    hidePreviewButton: {{HIDE_PREVIEW_BUTTON}},
+    hideMarkdownHints: {{HIDE_MARKDOWN_HINTS}},
+    hideLastModified: {{HIDE_LAST_MODIFIED}},
 
     // Convenience methods for users
     enableDebug: function() {
@@ -96,6 +99,10 @@ class EntityNotesCard extends HTMLElement {
 
     render() {
         const maxLength = window.entityNotes.maxNoteLength;
+        const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
+            '<button class="entity-notes-md-button" data-action="toggle-preview" title="Toggle Live Preview" style="width: auto; padding: 0 8px;" disabled>Preview</button>';
+        const fullPlaceholder = 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)';
+        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? 'Add a note...' : fullPlaceholder;
         this.shadowRoot.innerHTML = `
             <style>
                 .entity-notes-container {
@@ -313,7 +320,7 @@ class EntityNotesCard extends HTMLElement {
                 <div class="entity-notes-view"></div>
                 <div class="entity-notes-edit-controls hidden">
                     <div class="entity-notes-persistent-toolbar">
-                        <button class="entity-notes-md-button" data-action="toggle-preview" title="Toggle Live Preview" style="width: auto; padding: 0 8px;" disabled>Preview</button>
+                        ${previewButtonHtml}
                     </div>
                     <div class="entity-notes-markdown-toolbar hidden">
                     <button class="entity-notes-md-button" data-action="undo" title="Undo (Ctrl+Z)" disabled>↩</button>
@@ -336,7 +343,7 @@ class EntityNotesCard extends HTMLElement {
                 </div>
                 <textarea
                     class="entity-notes-textarea"
-                    placeholder="Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, \`inline code\`, > blockquote, ~strikethrough~)"
+                    placeholder="${initialPlaceholder}"
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
@@ -566,6 +573,10 @@ class EntityNotesCard extends HTMLElement {
 
     updateTimestampDisplay() {
         const tsDiv = this.shadowRoot.querySelector('.entity-notes-timestamp');
+        if (window.entityNotes.hideLastModified) {
+            tsDiv.classList.add('hidden');
+            return;
+        }
         if (this.updatedAt) {
             tsDiv.textContent = `🕒 ${this.formatTimestamp(this.updatedAt)}`;
             tsDiv.classList.remove('hidden');
@@ -805,11 +816,17 @@ class EntityNotesCard extends HTMLElement {
         });
 
         textarea.addEventListener('focus', () => {
-        this.autoResize();
-        this.updateButtonVisibility();
+            if (window.entityNotes.hideMarkdownHints) {
+                textarea.placeholder = 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)';
+            }
+            this.autoResize();
+            this.updateButtonVisibility();
         });
 
         textarea.addEventListener('blur', () => {
+            if (window.entityNotes.hideMarkdownHints) {
+                textarea.placeholder = 'Add a note...';
+            }
             // When textarea loses focus, switch back to view mode if there's content
             // Add a small delay to allow button clicks to register
             setTimeout(() => {
