@@ -1432,9 +1432,9 @@ function injectNotesIntoDeviceDialog(dialog) {
         }
     }
 
-    // Check if already injected (use property flag since card may be in nested shadow root)
-    if (dialog._entityNotesDeviceInjected) {
-        debugLog('Entity Notes: Device notes already injected');
+    // Check if already injected for this specific device (use ID like entity injection does)
+    if (dialog._entityNotesDeviceInjectedFor === deviceId) {
+        debugLog('Entity Notes: Device notes already injected for device: ' + deviceId);
         return;
     }
 
@@ -1463,12 +1463,16 @@ function injectNotesIntoDeviceDialog(dialog) {
         return;
     }
 
+    // Remove any stale card from a previous device (dialog element is reused)
+    const existing = contentArea.querySelector('entity-notes-card');
+    if (existing) existing.remove();
+
     // Create and inject notes card
     const notesCard = document.createElement('entity-notes-card');
     notesCard.setAttribute('device-id', deviceId);
     notesCard.setAttribute('type', 'device');
     contentArea.appendChild(notesCard);
-    dialog._entityNotesDeviceInjected = true;
+    dialog._entityNotesDeviceInjectedFor = deviceId;
 
     debugLog('Entity Notes: Notes card injected for device: ' + deviceId);
 
