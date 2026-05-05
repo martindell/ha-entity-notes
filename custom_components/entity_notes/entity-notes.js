@@ -1579,6 +1579,25 @@ function setupDialogObserver() {
     }, true);
     infoLog('Entity Notes: hass-more-info listener registered');
 
+    // Device dialogs are also persistent (reused across navigations). HA fires
+    // 'show-dialog' each time a dialog is opened, so we listen for the device
+    // registry detail dialog tag to detect navigation between devices.
+    if (window.entityNotes.enableDeviceNotes) {
+        window.addEventListener('show-dialog', (event) => {
+            if (event.detail?.dialogTag !== 'dialog-device-registry-detail') return;
+            debugLog('Entity Notes: show-dialog event detected for device registry detail');
+            const ha = document.querySelector('home-assistant');
+            const dialog = ha?.shadowRoot?.querySelector('dialog-device-registry-detail');
+            if (!dialog) return;
+            // Clear the per-device flag so injection runs fresh for the new device
+            delete dialog._entityNotesDeviceInjectedFor;
+            [200, 500, 1000, 2000].forEach(delay => {
+                setTimeout(() => injectNotesIntoDeviceDialog(dialog), delay);
+            });
+        }, true);
+        infoLog('Entity Notes: show-dialog listener registered for device notes');
+    }
+
     // Observe the Home Assistant shadow root (where dialogs are actually created)
     debugLog('Entity Notes: Observing home-assistant shadow root');
     observer.observe(homeAssistant.shadowRoot, {
