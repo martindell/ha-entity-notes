@@ -15,30 +15,34 @@ window.entityNotes = {
     hideLastModified: {{HIDE_LAST_MODIFIED}},
 
     strings: {
-        save: 'SAVE',
-        delete: 'DELETE',
-        preview: 'Preview',
-        add_note: 'Add a note...',
-        markdown_hints: 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)',
-        preview_empty: 'Preview (empty)',
-        confirm_delete: 'Are you sure you want to delete the note for {type} {item_id}?',
-        toolbar_toggle_preview: 'Toggle Live Preview',
-        toolbar_undo: 'Undo (Ctrl+Z)',
-        toolbar_redo: 'Redo (Ctrl+Y)',
-        toolbar_heading1: 'Heading 1',
-        toolbar_heading2: 'Heading 2',
-        toolbar_bold: 'Bold',
-        toolbar_italic: 'Italic',
-        toolbar_bullet_list: 'Bullet list',
-        toolbar_numbered_list: 'Numbered list',
-        toolbar_divider: 'Divider',
-        toolbar_inline_code: 'Inline Code',
-        toolbar_code_block: 'Code Block',
-        toolbar_insert_link: 'Insert Link',
-        toolbar_blockquote: 'Blockquote',
-        toolbar_strikethrough: 'Strikethrough',
-        prompt_link_text: 'Enter link text:',
-        prompt_link_url: 'Enter URL:',
+        en: {
+            save: 'SAVE',
+            delete: 'DELETE',
+            preview: 'Preview',
+            add_note: 'Add a note...',
+            markdown_hints: 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)',
+            preview_empty: 'Preview (empty)',
+            confirm_delete: 'Are you sure you want to delete the note for {type} {item_id}?',
+            toolbar_toggle_preview: 'Toggle Live Preview',
+            toolbar_undo: 'Undo (Ctrl+Z)',
+            toolbar_redo: 'Redo (Ctrl+Y)',
+            toolbar_heading1: 'Heading 1',
+            toolbar_heading2: 'Heading 2',
+            toolbar_bold: 'Bold',
+            toolbar_italic: 'Italic',
+            toolbar_bullet_list: 'Bullet list',
+            toolbar_numbered_list: 'Numbered list',
+            toolbar_divider: 'Divider',
+            toolbar_inline_code: 'Inline Code',
+            toolbar_code_block: 'Code Block',
+            toolbar_insert_link: 'Insert Link',
+            toolbar_blockquote: 'Blockquote',
+            toolbar_strikethrough: 'Strikethrough',
+            prompt_link_text: 'Enter link text:',
+            prompt_link_url: 'Enter URL:',
+        },
+        // Community translations — add your language here and open a pull request.
+        // Keys must match the 'en' block above. Missing keys fall back to English.
     },
 
     // Convenience methods for users
@@ -65,10 +69,10 @@ function infoLog(message) {
 }
 
 function localize(key, replacements) {
-    const fullKey = `component.entity_notes.frontend.${key}`;
     const ha = document.querySelector('home-assistant');
-    const hass = ha?.hass;
-    let str = (hass?.localize && hass.localize(fullKey)) || window.entityNotes.strings[key] || key;
+    const lang = ha?.hass?.language || 'en';
+    const strings = window.entityNotes.strings[lang] || window.entityNotes.strings['en'];
+    let str = strings[key] ?? window.entityNotes.strings['en'][key] ?? key;
     if (replacements) {
         for (const [k, v] of Object.entries(replacements)) {
             str = str.replace(`{${k}}`, v);

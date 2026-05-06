@@ -245,13 +245,23 @@ Thanks to [@Bjoern3D](https://github.com/Bjoern3D) for the Markdown toolbar, und
 
 ### Adding A Translation
 
-All UI strings are in `translations/en.json` under the `frontend` key. To add a new language:
+All UI strings live in the `strings` object near the top of `custom_components/entity_notes/entity-notes.js`, organised by language code. The correct language is picked automatically at runtime based on each user's Home Assistant language setting, falling back to English for any missing keys.
 
-1. Copy `translations/en.json` to `translations/<lang>.json` - for example `translations/fr.json` for French.
-2. Translate the values under the `frontend` key. Leave all other keys (`config`, `options`, etc.) in English, or translate those too if you like.
-3. Open a pull request.
+To add a new language:
 
-Home Assistant will automatically serve the correct language to each user based on their language setting. Language codes follow the [standard Home Assistant convention](https://developers.home-assistant.io/docs/internationalization/core/#supported-languages) (e.g. `fr`, `de`, `nl`, `es`).
+1. Open `entity-notes.js` and find the `strings` object inside `window.entityNotes`.
+2. Add a new block using the appropriate [BCP 47 language code](https://developers.home-assistant.io/docs/internationalization/core/#supported-languages) (e.g. `fr` for French, `de` for German):
+
+```js
+fr: {
+    save: 'ENREGISTRER',
+    delete: 'SUPPRIMER',
+    // ... all keys from the 'en' block
+},
+```
+
+3. Translate every key from the `en` block. Any key you omit will automatically fall back to English.
+4. Open a pull request.
 
 ## Support
 
