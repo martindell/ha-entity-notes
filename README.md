@@ -23,7 +23,7 @@ Entity Notes adds a notes panel to Home Assistant entity and device dialogs, so 
 - Keep notes across restarts using Home Assistant storage
 - Include notes in regular Home Assistant backups
 - Manage notes programmatically with Home Assistant services and REST endpoints
-- Translated UI - contribute your language via a single JSON file
+- Translated UI - contribute your language via a pull request
 
 ## Screenshots
 
