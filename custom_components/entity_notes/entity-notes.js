@@ -14,6 +14,33 @@ window.entityNotes = {
     hideMarkdownHints: {{HIDE_MARKDOWN_HINTS}},
     hideLastModified: {{HIDE_LAST_MODIFIED}},
 
+    strings: {
+        save: 'SAVE',
+        delete: 'DELETE',
+        preview: 'Preview',
+        add_note: 'Add a note...',
+        markdown_hints: 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)',
+        preview_empty: 'Preview (empty)',
+        confirm_delete: 'Are you sure you want to delete the note for {type} {item_id}?',
+        toolbar_toggle_preview: 'Toggle Live Preview',
+        toolbar_undo: 'Undo (Ctrl+Z)',
+        toolbar_redo: 'Redo (Ctrl+Y)',
+        toolbar_heading1: 'Heading 1',
+        toolbar_heading2: 'Heading 2',
+        toolbar_bold: 'Bold',
+        toolbar_italic: 'Italic',
+        toolbar_bullet_list: 'Bullet list',
+        toolbar_numbered_list: 'Numbered list',
+        toolbar_divider: 'Divider',
+        toolbar_inline_code: 'Inline Code',
+        toolbar_code_block: 'Code Block',
+        toolbar_insert_link: 'Insert Link',
+        toolbar_blockquote: 'Blockquote',
+        toolbar_strikethrough: 'Strikethrough',
+        prompt_link_text: 'Enter link text:',
+        prompt_link_url: 'Enter URL:',
+    },
+
     // Convenience methods for users
     enableDebug: function() {
         this.debug = true;
@@ -35,6 +62,19 @@ function debugLog(message) {
 // Always log critical messages (errors, warnings, success)
 function infoLog(message) {
     console.log(message);
+}
+
+function localize(key, replacements) {
+    const fullKey = `component.entity_notes.frontend.${key}`;
+    const ha = document.querySelector('home-assistant');
+    const hass = ha?.hass;
+    let str = (hass?.localize && hass.localize(fullKey)) || window.entityNotes.strings[key] || key;
+    if (replacements) {
+        for (const [k, v] of Object.entries(replacements)) {
+            str = str.replace(`{${k}}`, v);
+        }
+    }
+    return str;
 }
 
 class EntityNotesCard extends HTMLElement {
@@ -100,9 +140,8 @@ class EntityNotesCard extends HTMLElement {
     render() {
         const maxLength = window.entityNotes.maxNoteLength;
         const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
-            '<button class="entity-notes-md-button" data-action="toggle-preview" title="Toggle Live Preview" style="width: auto; padding: 0 8px;" disabled>Preview</button>';
-        const fullPlaceholder = 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)';
-        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? 'Add a note...' : fullPlaceholder;
+            `<button class="entity-notes-md-button" data-action="toggle-preview" title="${localize('toolbar_toggle_preview')}" style="width: auto; padding: 0 8px;" disabled>${localize('preview')}</button>`;
+        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? localize('add_note') : localize('markdown_hints');
         this.shadowRoot.innerHTML = `
             <style>
                 .entity-notes-container {
@@ -323,22 +362,22 @@ class EntityNotesCard extends HTMLElement {
                         ${previewButtonHtml}
                     </div>
                     <div class="entity-notes-markdown-toolbar hidden">
-                    <button class="entity-notes-md-button" data-action="undo" title="Undo (Ctrl+Z)" disabled>↩</button>
-                    <button class="entity-notes-md-button" data-action="redo" title="Redo (Ctrl+Y)" disabled>↪</button>
-                    <div class="entity-notes-toolbar-separator"></div>
-                    <button class="entity-notes-md-button" data-format="h1" title="Heading 1">H1</button>
-                    <button class="entity-notes-md-button" data-format="h2" title="Heading 2">H2</button>
-                    <button class="entity-notes-md-button" data-format="bold" title="Bold"><b>B</b></button>
-                    <button class="entity-notes-md-button" data-format="italic" title="Italic"><i>I</i></button>
-                    <button class="entity-notes-md-button" data-format="ul" title="Bullet list">&bull;</button>
-                    <button class="entity-notes-md-button" data-format="ol" title="Numbered list">1.</button>
-                    <button class="entity-notes-md-button" data-format="hr" title="Divider">&mdash;</button>
-                    <div class="entity-notes-toolbar-separator"></div>
-                    <button class="entity-notes-md-button" data-format="inline-code" title="Inline Code">\`</button>
-                    <button class="entity-notes-md-button" data-format="code-block" title="Code Block">\`\`\`</button>
-                    <button class="entity-notes-md-button" data-format="link" title="Insert Link">🔗</button>
-                    <button class="entity-notes-md-button" data-format="blockquote" title="Blockquote">”</button>
-                    <button class="entity-notes-md-button" data-format="strikethrough" title="Strikethrough">~</button>
+                    <button class=”entity-notes-md-button” data-action=”undo” title=”${localize('toolbar_undo')}” disabled>↩</button>
+                    <button class=”entity-notes-md-button” data-action=”redo” title=”${localize('toolbar_redo')}” disabled>↪</button>
+                    <div class=”entity-notes-toolbar-separator”></div>
+                    <button class=”entity-notes-md-button” data-format=”h1” title=”${localize('toolbar_heading1')}”>H1</button>
+                    <button class=”entity-notes-md-button” data-format=”h2” title=”${localize('toolbar_heading2')}”>H2</button>
+                    <button class=”entity-notes-md-button” data-format=”bold” title=”${localize('toolbar_bold')}”><b>B</b></button>
+                    <button class=”entity-notes-md-button” data-format=”italic” title=”${localize('toolbar_italic')}”><i>I</i></button>
+                    <button class=”entity-notes-md-button” data-format=”ul” title=”${localize('toolbar_bullet_list')}”>&bull;</button>
+                    <button class=”entity-notes-md-button” data-format=”ol” title=”${localize('toolbar_numbered_list')}”>1.</button>
+                    <button class=”entity-notes-md-button” data-format=”hr” title=”${localize('toolbar_divider')}”>&mdash;</button>
+                    <div class=”entity-notes-toolbar-separator”></div>
+                    <button class=”entity-notes-md-button” data-format=”inline-code” title=”${localize('toolbar_inline_code')}”>\`</button>
+                    <button class=”entity-notes-md-button” data-format=”code-block” title=”${localize('toolbar_code_block')}”>\`\`\`</button>
+                    <button class=”entity-notes-md-button” data-format=”link” title=”${localize('toolbar_insert_link')}”>🔗</button>
+                    <button class=”entity-notes-md-button” data-format=”blockquote” title=”${localize('toolbar_blockquote')}”>”</button>
+                    <button class=”entity-notes-md-button” data-format=”strikethrough” title=”${localize('toolbar_strikethrough')}”>~</button>
                 </div>
                 </div>
                 <textarea
@@ -353,8 +392,8 @@ class EntityNotesCard extends HTMLElement {
                     <div class="entity-notes-char-count">0/${maxLength}</div>
                 </div>
                 <div class="entity-notes-actions">
-                    <button class="entity-notes-button entity-notes-delete">DELETE</button>
-                    <button class="entity-notes-button entity-notes-save">SAVE</button>
+                    <button class="entity-notes-button entity-notes-delete">${localize('delete')}</button>
+                    <button class="entity-notes-button entity-notes-save">${localize('save')}</button>
                 </div>
             </div>
         `;
@@ -705,9 +744,9 @@ class EntityNotesCard extends HTMLElement {
                 break;
             }
             case 'link': {
-                const linkText = prompt('Enter link text:', selectedText || '');
+                const linkText = prompt(localize('prompt_link_text'), selectedText || '');
                 if (linkText === null) break; // User cancelled
-                const url = prompt('Enter URL:', 'https://');
+                const url = prompt(localize('prompt_link_url'), 'https://');
                 if (url === null) break; // User cancelled
                 
                 const linkMarkdown = `[${linkText}](${url})`;
@@ -817,7 +856,7 @@ class EntityNotesCard extends HTMLElement {
 
         textarea.addEventListener('focus', () => {
             if (window.entityNotes.hideMarkdownHints) {
-                textarea.placeholder = 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)';
+                textarea.placeholder = localize('markdown_hints');
             }
             this.autoResize();
             this.updateButtonVisibility();
@@ -825,7 +864,7 @@ class EntityNotesCard extends HTMLElement {
 
         textarea.addEventListener('blur', () => {
             if (window.entityNotes.hideMarkdownHints) {
-                textarea.placeholder = 'Add a note...';
+                textarea.placeholder = localize('add_note');
             }
             // When textarea loses focus, switch back to view mode if there's content
             // Add a small delay to allow button clicks to register
@@ -881,7 +920,7 @@ class EntityNotesCard extends HTMLElement {
             const text = textarea.value.trim();
 
             if (text.length === 0) {
-                previewDiv.innerHTML = '<em style="color: var(--secondary-text-color, #666);">Preview (empty)</em>';
+                previewDiv.innerHTML = `<em style="color: var(--secondary-text-color, #666);">${localize('preview_empty')}</em>`;
             return;
         }
         
@@ -1180,7 +1219,7 @@ class EntityNotesCard extends HTMLElement {
 
         // New confirmation logic
         if (window.entityNotes.confirmDelete === true || window.entityNotes.confirmDelete === 'true') {
-            if (!confirm(`Are you sure you want to delete the note for ${type} ${itemId}?`)) {
+            if (!confirm(localize('confirm_delete', { type, item_id: itemId }))) {
                 debugLog(`Entity Notes: Delete cancelled for ${type} ${itemId}`); // User cancelled deletion
                 return;
             }

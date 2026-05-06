@@ -23,6 +23,7 @@ Entity Notes adds a notes panel to Home Assistant entity and device dialogs, so 
 - Keep notes across restarts using Home Assistant storage
 - Include notes in regular Home Assistant backups
 - Manage notes programmatically with Home Assistant services and REST endpoints
+- Translated UI - contribute your language via a single JSON file
 
 ## Screenshots
 
@@ -241,6 +242,16 @@ Notes are included in normal Home Assistant backups. The integration also provid
 Contributions are welcome. Please open an issue or pull request on GitHub.
 
 Thanks to [@Bjoern3D](https://github.com/Bjoern3D) for the Markdown toolbar, undo/redo controls, Jinja2 template support, live preview, timestamps, confirm-before-delete option, mobile UI improvements, and related UX fixes.
+
+### Adding A Translation
+
+All UI strings are in `translations/en.json` under the `frontend` key. To add a new language:
+
+1. Copy `translations/en.json` to `translations/<lang>.json` - for example `translations/fr.json` for French.
+2. Translate the values under the `frontend` key. Leave all other keys (`config`, `options`, etc.) in English, or translate those too if you like.
+3. Open a pull request.
+
+Home Assistant will automatically serve the correct language to each user based on their language setting. Language codes follow the [standard Home Assistant convention](https://developers.home-assistant.io/docs/internationalization/core/#supported-languages) (e.g. `fr`, `de`, `nl`, `es`).
 
 ## Support
 
