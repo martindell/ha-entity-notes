@@ -360,32 +360,32 @@ class EntityNotesCard extends HTMLElement {
                 }
             </style>
             <div class="entity-notes-container">
-                <div class="entity-notes-view"></div>
+                <div class="entity-notes-view hidden"></div>
                 <div class="entity-notes-edit-controls hidden">
                     <div class="entity-notes-persistent-toolbar">
                         ${previewButtonHtml}
                     </div>
                     <div class="entity-notes-markdown-toolbar hidden">
-                    <button class=”entity-notes-md-button” data-action=”undo” title=”${localize('toolbar_undo')}” disabled>↩</button>
-                    <button class=”entity-notes-md-button” data-action=”redo” title=”${localize('toolbar_redo')}” disabled>↪</button>
-                    <div class=”entity-notes-toolbar-separator”></div>
-                    <button class=”entity-notes-md-button” data-format=”h1” title=”${localize('toolbar_heading1')}”>H1</button>
-                    <button class=”entity-notes-md-button” data-format=”h2” title=”${localize('toolbar_heading2')}”>H2</button>
-                    <button class=”entity-notes-md-button” data-format=”bold” title=”${localize('toolbar_bold')}”><b>B</b></button>
-                    <button class=”entity-notes-md-button” data-format=”italic” title=”${localize('toolbar_italic')}”><i>I</i></button>
-                    <button class=”entity-notes-md-button” data-format=”ul” title=”${localize('toolbar_bullet_list')}”>&bull;</button>
-                    <button class=”entity-notes-md-button” data-format=”ol” title=”${localize('toolbar_numbered_list')}”>1.</button>
-                    <button class=”entity-notes-md-button” data-format=”hr” title=”${localize('toolbar_divider')}”>&mdash;</button>
-                    <div class=”entity-notes-toolbar-separator”></div>
-                    <button class=”entity-notes-md-button” data-format=”inline-code” title=”${localize('toolbar_inline_code')}”>\`</button>
-                    <button class=”entity-notes-md-button” data-format=”code-block” title=”${localize('toolbar_code_block')}”>\`\`\`</button>
-                    <button class=”entity-notes-md-button” data-format=”link” title=”${localize('toolbar_insert_link')}”>🔗</button>
-                    <button class=”entity-notes-md-button” data-format=”blockquote” title=”${localize('toolbar_blockquote')}”>”</button>
-                    <button class=”entity-notes-md-button” data-format=”strikethrough” title=”${localize('toolbar_strikethrough')}”>~</button>
+                    <button class="entity-notes-md-button" data-action="undo" title="${localize('toolbar_undo')}" disabled>↩</button>
+                    <button class="entity-notes-md-button" data-action="redo" title="${localize('toolbar_redo')}" disabled>↪</button>
+                    <div class="entity-notes-toolbar-separator"></div>
+                    <button class="entity-notes-md-button" data-format="h1" title="${localize('toolbar_heading1')}">H1</button>
+                    <button class="entity-notes-md-button" data-format="h2" title="${localize('toolbar_heading2')}">H2</button>
+                    <button class="entity-notes-md-button" data-format="bold" title="${localize('toolbar_bold')}"><b>B</b></button>
+                    <button class="entity-notes-md-button" data-format="italic" title="${localize('toolbar_italic')}"><i>I</i></button>
+                    <button class="entity-notes-md-button" data-format="ul" title="${localize('toolbar_bullet_list')}">&bull;</button>
+                    <button class="entity-notes-md-button" data-format="ol" title="${localize('toolbar_numbered_list')}">1.</button>
+                    <button class="entity-notes-md-button" data-format="hr" title="${localize('toolbar_divider')}">&mdash;</button>
+                    <div class="entity-notes-toolbar-separator"></div>
+                    <button class="entity-notes-md-button" data-format="inline-code" title="${localize('toolbar_inline_code')}">\`</button>
+                    <button class="entity-notes-md-button" data-format="code-block" title="${localize('toolbar_code_block')}">\`\`\`</button>
+                    <button class="entity-notes-md-button" data-format="link" title="${localize('toolbar_insert_link')}">🔗</button>
+                    <button class="entity-notes-md-button" data-format="blockquote" title="${localize('toolbar_blockquote')}">”</button>
+                    <button class="entity-notes-md-button" data-format="strikethrough" title="${localize('toolbar_strikethrough')}">~</button>
                 </div>
                 </div>
                 <textarea
-                    class="entity-notes-textarea"
+                    class="entity-notes-textarea hidden"
                     placeholder="${initialPlaceholder}"
                     maxlength="${maxLength}"
                     rows="1"
@@ -895,6 +895,11 @@ class EntityNotesCard extends HTMLElement {
             this.switchToEditMode();
         });
 
+        // Fokus-Verlust des Textfeldes bei Klick auf "Speichern" und "Löschen" blockieren,
+        // da die Buttons sonst je nach Einstellung verschwinden, bevor der Klick ausgeführt wird.
+        saveBtn.addEventListener('mousedown', (e) => e.preventDefault());
+        deleteBtn.addEventListener('mousedown', (e) => e.preventDefault());
+
         saveBtn.addEventListener('click', () => this.saveNote());
         deleteBtn.addEventListener('click', () => this.deleteNote());
     }
@@ -1168,6 +1173,9 @@ class EntityNotesCard extends HTMLElement {
 
         } catch (error) {
             console.error(`Entity Notes: Error loading note for ${type}:`, error);
+            const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+            viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">Error loading note.</em>`;
+            viewDiv.classList.remove('hidden');
         }
     }
 
@@ -1528,6 +1536,11 @@ function injectNotesIntoDeviceDialog(dialog) {
 function setupDialogObserver() {
     debugLog('Entity Notes: Setting up dialog observer');
 
+    if (window.entityNotes.observer) {
+        debugLog('Entity Notes: Disconnecting existing observer before setup');
+        window.entityNotes.observer.disconnect();
+    }
+
     const homeAssistant = document.querySelector('home-assistant');
     if (!homeAssistant?.shadowRoot) {
         debugLog('Entity Notes: Home Assistant shadow root not found, retrying in 1 second...');
@@ -1609,36 +1622,39 @@ function setupDialogObserver() {
     // HA 2026.4+: ha-more-info-dialog is a persistent element that is never
     // removed from the DOM. HA fires 'hass-more-info' each time a dialog opens,
     // so we listen for that instead of relying on MutationObserver node additions.
-    window.addEventListener('hass-more-info', (event) => {
-        debugLog('Entity Notes: hass-more-info event detected for entity: ' + event.detail?.entityId);
-        const ha = document.querySelector('home-assistant');
-        const dialog = ha?.shadowRoot?.querySelector('ha-more-info-dialog');
-        if (!dialog) return;
-        // Clear the per-entity flag so injection runs fresh for the new entity
-        delete dialog._entityNotesInjectedFor;
-        [200, 500, 1000, 2000].forEach(delay => {
-            setTimeout(() => injectNotesIntoDialog(dialog), delay);
-        });
-    }, true);
-    infoLog('Entity Notes: hass-more-info listener registered');
-
-    // Device dialogs are also persistent (reused across navigations). HA fires
-    // 'show-dialog' each time a dialog is opened, so we listen for the device
-    // registry detail dialog tag to detect navigation between devices.
-    if (window.entityNotes.enableDeviceNotes) {
-        window.addEventListener('show-dialog', (event) => {
-            if (event.detail?.dialogTag !== 'dialog-device-registry-detail') return;
-            debugLog('Entity Notes: show-dialog event detected for device registry detail');
+    if (!window.entityNotes.listenersAdded) {
+        window.addEventListener('hass-more-info', (event) => {
+            debugLog('Entity Notes: hass-more-info event detected for entity: ' + event.detail?.entityId);
             const ha = document.querySelector('home-assistant');
-            const dialog = ha?.shadowRoot?.querySelector('dialog-device-registry-detail');
+            const dialog = ha?.shadowRoot?.querySelector('ha-more-info-dialog');
             if (!dialog) return;
-            // Clear the per-device flag so injection runs fresh for the new device
-            delete dialog._entityNotesDeviceInjectedFor;
+            // Clear the per-entity flag so injection runs fresh for the new entity
+            delete dialog._entityNotesInjectedFor;
             [200, 500, 1000, 2000].forEach(delay => {
-                setTimeout(() => injectNotesIntoDeviceDialog(dialog), delay);
+                setTimeout(() => injectNotesIntoDialog(dialog), delay);
             });
         }, true);
-        infoLog('Entity Notes: show-dialog listener registered for device notes');
+        infoLog('Entity Notes: hass-more-info listener registered');
+
+        // Device dialogs are also persistent (reused across navigations). HA fires
+        // 'show-dialog' each time a dialog is opened, so we listen for the device
+        // registry detail dialog tag to detect navigation between devices.
+        if (window.entityNotes.enableDeviceNotes) {
+            window.addEventListener('show-dialog', (event) => {
+                if (event.detail?.dialogTag !== 'dialog-device-registry-detail') return;
+                debugLog('Entity Notes: show-dialog event detected for device registry detail');
+                const ha = document.querySelector('home-assistant');
+                const dialog = ha?.shadowRoot?.querySelector('dialog-device-registry-detail');
+                if (!dialog) return;
+                // Clear the per-device flag so injection runs fresh for the new device
+                delete dialog._entityNotesDeviceInjectedFor;
+                [200, 500, 1000, 2000].forEach(delay => {
+                    setTimeout(() => injectNotesIntoDeviceDialog(dialog), delay);
+                });
+            }, true);
+            infoLog('Entity Notes: show-dialog listener registered for device notes');
+        }
+        window.entityNotes.listenersAdded = true;
     }
 
     // Observe the Home Assistant shadow root (where dialogs are actually created)
