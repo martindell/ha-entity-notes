@@ -38,6 +38,7 @@ window.entityNotes = {
             toolbar_insert_link: 'Insert Link',
             toolbar_blockquote: 'Blockquote',
             toolbar_strikethrough: 'Strikethrough',
+            error_loading_note: 'Error loading note.',
             prompt_link_text: 'Enter link text:',
             prompt_link_url: 'Enter URL:',
         },
@@ -1174,7 +1175,7 @@ class EntityNotesCard extends HTMLElement {
         } catch (error) {
             console.error(`Entity Notes: Error loading note for ${type}:`, error);
             const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
-            viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">Error loading note.</em>`;
+            viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">${localize('error_loading_note')}</em>`;
             viewDiv.classList.remove('hidden');
         }
     }
