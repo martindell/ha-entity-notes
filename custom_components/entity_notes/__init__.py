@@ -30,6 +30,7 @@ from .const import (
     CONF_CONFIRM_DELETE,
     CONF_HIDE_PREVIEW_BUTTON,
     CONF_HIDE_MARKDOWN_HINTS,
+    CONF_EMPTY_NOTE_PLACEHOLDER,
     CONF_HIDE_LAST_MODIFIED,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
@@ -43,6 +44,7 @@ from .const import (
     DEFAULT_SHOW_MARKDOWN_TOOLBAR,
     DEFAULT_HIDE_PREVIEW_BUTTON,
     DEFAULT_HIDE_MARKDOWN_HINTS,
+    DEFAULT_EMPTY_NOTE_PLACEHOLDER,
     DEFAULT_HIDE_LAST_MODIFIED,
     FRONTEND_JS_PATH,
     EVENT_NOTES_UPDATED,
@@ -108,6 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     confirm_delete = options.get(CONF_CONFIRM_DELETE, DEFAULT_CONFIRM_DELETE)
     hide_preview_button = options.get(CONF_HIDE_PREVIEW_BUTTON, DEFAULT_HIDE_PREVIEW_BUTTON)
     hide_markdown_hints = options.get(CONF_HIDE_MARKDOWN_HINTS, DEFAULT_HIDE_MARKDOWN_HINTS)
+    empty_note_placeholder = options.get(CONF_EMPTY_NOTE_PLACEHOLDER, DEFAULT_EMPTY_NOTE_PLACEHOLDER)
     hide_last_modified = options.get(CONF_HIDE_LAST_MODIFIED, DEFAULT_HIDE_LAST_MODIFIED)
 
     if debug_logging:
@@ -223,6 +226,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_CONFIRM_DELETE: confirm_delete,
                 CONF_HIDE_PREVIEW_BUTTON: hide_preview_button,
                 CONF_HIDE_MARKDOWN_HINTS: hide_markdown_hints,
+                CONF_EMPTY_NOTE_PLACEHOLDER: empty_note_placeholder,
                 CONF_HIDE_LAST_MODIFIED: hide_last_modified,
             },
             "entry_id": entry.entry_id,
@@ -797,6 +801,7 @@ class EntityNotesJSView(HomeAssistantView):
         confirm_delete = hass.data[DOMAIN]["config"].get(CONF_CONFIRM_DELETE, True)
         hide_preview_button = hass.data[DOMAIN]["config"].get(CONF_HIDE_PREVIEW_BUTTON, False)
         hide_markdown_hints = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_HINTS, False)
+        empty_note_placeholder = hass.data[DOMAIN]["config"].get(CONF_EMPTY_NOTE_PLACEHOLDER, "")
         hide_last_modified = hass.data[DOMAIN]["config"].get(CONF_HIDE_LAST_MODIFIED, False)
 
         # Get the JavaScript file path
@@ -820,6 +825,7 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{SHOW_MARKDOWN_TOOLBAR}}', str(show_markdown_toolbar).lower())
             js_content = js_content.replace('{{HIDE_PREVIEW_BUTTON}}', str(hide_preview_button).lower())
             js_content = js_content.replace('{{HIDE_MARKDOWN_HINTS}}', str(hide_markdown_hints).lower())
+            js_content = js_content.replace('{{EMPTY_NOTE_PLACEHOLDER}}', json.dumps(empty_note_placeholder))
             js_content = js_content.replace('{{HIDE_LAST_MODIFIED}}', str(hide_last_modified).lower())
 
             return web.Response(

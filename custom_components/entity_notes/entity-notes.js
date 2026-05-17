@@ -12,6 +12,7 @@ window.entityNotes = {
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
     hidePreviewButton: {{HIDE_PREVIEW_BUTTON}},
     hideMarkdownHints: {{HIDE_MARKDOWN_HINTS}},
+    emptyNotePlaceholder: {{EMPTY_NOTE_PLACEHOLDER}},
     hideLastModified: {{HIDE_LAST_MODIFIED}},
 
     strings: {
@@ -82,6 +83,14 @@ function localize(key, replacements) {
     return str;
 }
 
+function emptyNotePlaceholder() {
+    const customPlaceholder = window.entityNotes.emptyNotePlaceholder;
+    if (typeof customPlaceholder === 'string' && customPlaceholder.trim().length > 0) {
+        return customPlaceholder.trim();
+    }
+    return localize('add_note');
+}
+
 class EntityNotesCard extends HTMLElement {
     constructor() {
         super();
@@ -146,7 +155,7 @@ class EntityNotesCard extends HTMLElement {
         const maxLength = window.entityNotes.maxNoteLength;
         const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
             `<button class="entity-notes-md-button" data-action="toggle-preview" title="${localize('toolbar_toggle_preview')}" style="width: auto; padding: 0 8px;" disabled>${localize('preview')}</button>`;
-        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? localize('add_note') : localize('markdown_hints');
+        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? emptyNotePlaceholder() : localize('markdown_hints');
         this.shadowRoot.innerHTML = `
             <style>
                 .entity-notes-container {
@@ -865,11 +874,12 @@ class EntityNotesCard extends HTMLElement {
             }
             this.autoResize();
             this.updateButtonVisibility();
+            this.updateEditControlsVisibility();
         });
 
         textarea.addEventListener('blur', () => {
             if (window.entityNotes.hideMarkdownHints) {
-                textarea.placeholder = localize('add_note');
+                textarea.placeholder = emptyNotePlaceholder();
             }
             // When textarea loses focus, switch back to view mode if there's content
             // Add a small delay to allow button clicks to register
@@ -878,6 +888,7 @@ class EntityNotesCard extends HTMLElement {
                 this.switchToViewMode();
                 }
                 this.updateButtonVisibility();
+                this.updateEditControlsVisibility();
             }, 200);
         });
 
@@ -984,6 +995,24 @@ class EntityNotesCard extends HTMLElement {
             }
         }
 
+    hasTextareaFocus() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        return document.activeElement === textarea || this.shadowRoot.activeElement === textarea;
+    }
+
+    updateEditControlsVisibility() {
+        const editControls = this.shadowRoot.querySelector('.entity-notes-edit-controls');
+        const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
+        const shouldShowMarkdownToolbar = window.entityNotes.showMarkdownToolbar === true ||
+            window.entityNotes.showMarkdownToolbar === 'true';
+        const shouldHideUntilFocus = window.entityNotes.hideMarkdownHints === true ||
+            window.entityNotes.hideMarkdownHints === 'true';
+        const shouldShowEditControls = !shouldHideUntilFocus || this.hasTextareaFocus();
+
+        editControls.classList.toggle('hidden', !shouldShowEditControls);
+        markdownToolbar.classList.toggle('hidden', !shouldShowEditControls || !shouldShowMarkdownToolbar);
+    }
+
     updateButtonVisibility() {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const actions = this.shadowRoot.querySelector('.entity-notes-actions');
@@ -992,8 +1021,7 @@ class EntityNotesCard extends HTMLElement {
         // NEW LOGIC: Check if hide-until-focus mode is enabled
         if (window.entityNotes.hideButtonsUntilFocus) {
             // In hide-until-focus mode, only show buttons when textarea has focus
-            const hasFocus = document.activeElement === textarea ||
-                            this.shadowRoot.activeElement === textarea;
+            const hasFocus = this.hasTextareaFocus();
 
             if (hasFocus) {
                 actions.classList.remove('hidden');
@@ -1048,7 +1076,6 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
-        const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
         this.initialState = textarea.value;
         this.redoState = null;
         this.updateUndoRedoButtons();
@@ -1057,12 +1084,7 @@ class EntityNotesCard extends HTMLElement {
         textarea.classList.remove('hidden');
         charCount.style.display = 'block';
         
-        const editControls = this.shadowRoot.querySelector('.entity-notes-edit-controls');
-        editControls.classList.remove('hidden');
-        
-        if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
-            markdownToolbar.classList.remove('hidden');
-        }
+        this.updateEditControlsVisibility();
 
             if (this.isPreviewVisible) {
                 this.shadowRoot.querySelector('.entity-notes-live-preview').classList.remove('hidden');
@@ -1073,6 +1095,7 @@ class EntityNotesCard extends HTMLElement {
         setTimeout(() => {
             textarea.focus();
             this.autoResize();
+            this.updateEditControlsVisibility();
         }, 10);
 
         debugLog('Entity Notes: Switched to edit mode');
@@ -1161,10 +1184,7 @@ class EntityNotesCard extends HTMLElement {
                 viewDiv.classList.add('hidden');
                 textarea.classList.remove('hidden');
                 
-                this.shadowRoot.querySelector('.entity-notes-edit-controls').classList.remove('hidden');
-                if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
-                    markdownToolbar.classList.remove('hidden');
-                }
+                this.updateEditControlsVisibility();
                 
                 this.isEditing = false;
                 this.updateUndoRedoButtons();
@@ -1249,7 +1269,6 @@ class EntityNotesCard extends HTMLElement {
             if (response.ok) {
                 const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
                 const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
-                const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
 
                 textarea.value = '';
                 viewDiv.innerHTML = '';
@@ -1263,10 +1282,7 @@ class EntityNotesCard extends HTMLElement {
                 this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'block';
                 this.isEditing = true;
                 
-                this.shadowRoot.querySelector('.entity-notes-edit-controls').classList.remove('hidden');
-                if (window.entityNotes.showMarkdownToolbar === true || window.entityNotes.showMarkdownToolbar === 'true') {
-                    markdownToolbar.classList.remove('hidden');
-                }
+                this.updateEditControlsVisibility();
                 
                 this.hasExistingNote = false;
 

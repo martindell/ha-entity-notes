@@ -119,7 +119,8 @@ Options are grouped into three sections in the integration settings.
 | --- | --- | --- |
 | Show Markdown toolbar | `true` | Show formatting controls in the note editor |
 | Hide the Preview button | `false` | Remove the live preview toggle from the editor |
-| Hide markdown hints until note is clicked | `false` | Show a simple placeholder until editing starts, then reveal full syntax hints |
+| Use compact empty note field until clicked | `false` | Show a simple placeholder first, then reveal formatting controls and Markdown hints when editing starts |
+| Custom empty note placeholder | blank | Override the simple empty-note placeholder; leave blank to use the translated default |
 | Hide last modified date | `false` | Hide the timestamp shown below each note |
 
 ### Behaviour

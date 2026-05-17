@@ -10,7 +10,8 @@
             "data": {
               "show_markdown_toolbar": "Show markdown formatting toolbar",
               "hide_preview_button": "Hide the Preview button",
-              "hide_markdown_hints": "Hide markdown hints until note is clicked",
+              "hide_markdown_hints": "Use compact empty note field until clicked",
+              "empty_note_placeholder": "Custom empty note placeholder",
               "hide_last_modified": "Hide last modified date"
             }
           },
@@ -42,7 +43,8 @@
             "data": {
               "show_markdown_toolbar": "Show markdown formatting toolbar",
               "hide_preview_button": "Hide the Preview button",
-              "hide_markdown_hints": "Hide markdown hints until note is clicked",
+              "hide_markdown_hints": "Use compact empty note field until clicked",
+              "empty_note_placeholder": "Custom empty note placeholder",
               "hide_last_modified": "Hide last modified date"
             }
           },
@@ -86,7 +88,8 @@
             "data": {
               "show_markdown_toolbar": "Show markdown formatting toolbar",
               "hide_preview_button": "Hide the Preview button",
-              "hide_markdown_hints": "Hide markdown hints until note is clicked",
+              "hide_markdown_hints": "Use compact empty note field until clicked",
+              "empty_note_placeholder": "Custom empty note placeholder",
               "hide_last_modified": "Hide last modified date"
             }
           },
