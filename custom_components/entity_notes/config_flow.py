@@ -68,6 +68,24 @@ SECTION_CONFIG = [
 
 # Flat list derived from sections — used by normalize_options
 CONFIG_OPTIONS = [opt for _, opts in SECTION_CONFIG for opt in opts]
+INVERTED_FORM_OPTIONS = {CONF_SHOW_MARKDOWN_TOOLBAR}
+
+
+def form_default(key: str, default: Any, current_options: dict[str, Any]) -> Any:
+    """Return the form default, inverting options shown as Hide toggles."""
+    value = current_options.get(key, default)
+    if key in INVERTED_FORM_OPTIONS:
+        return not value
+    return value
+
+
+def normalized_value(key: str, default: Any, section_data: dict[str, Any]) -> Any:
+    """Return the stored option value from form input."""
+    default_value = not default if key in INVERTED_FORM_OPTIONS else default
+    value = section_data.get(key, default_value)
+    if key in INVERTED_FORM_OPTIONS:
+        return not value
+    return value
 
 
 def build_options_schema(current_options: dict[str, Any] | None = None) -> vol.Schema:
@@ -76,7 +94,7 @@ def build_options_schema(current_options: dict[str, Any] | None = None) -> vol.S
     schema_dict = {}
     for section_key, opts in SECTION_CONFIG:
         section_schema = vol.Schema({
-            vol.Optional(key, default=current_options.get(key, default)): validator
+            vol.Optional(key, default=form_default(key, default, current_options)): validator
             for key, default, validator in opts
         })
         schema_dict[vol.Required(section_key)] = section(section_schema, {"collapsed": True})
@@ -99,7 +117,7 @@ def normalize_options(user_input: dict[str, Any]) -> dict[str, Any]:
     for section_key, opts in SECTION_CONFIG:
         section_data = user_input.get(section_key, user_input)
         for key, default, _ in opts:
-            flat[key] = section_data.get(key, default)
+            flat[key] = normalized_value(key, default, section_data)
     return flat
 
 
