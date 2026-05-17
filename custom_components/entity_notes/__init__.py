@@ -27,6 +27,7 @@ from .const import (
     CONF_DELETE_NOTES_WITH_DEVICE,
     CONF_ENABLE_DEVICE_NOTES,
     CONF_SHOW_MARKDOWN_TOOLBAR,
+    CONF_HIDE_MARKDOWN_TOOLBAR,
     CONF_CONFIRM_DELETE,
     CONF_HIDE_PREVIEW_BUTTON,
     CONF_HIDE_MARKDOWN_HINTS,
@@ -42,6 +43,7 @@ from .const import (
     DEFAULT_ENABLE_DEVICE_NOTES,
     DEFAULT_CONFIRM_DELETE,
     DEFAULT_SHOW_MARKDOWN_TOOLBAR,
+    DEFAULT_HIDE_MARKDOWN_TOOLBAR,
     DEFAULT_HIDE_PREVIEW_BUTTON,
     DEFAULT_HIDE_MARKDOWN_HINTS,
     DEFAULT_EMPTY_NOTE_PLACEHOLDER,
@@ -106,7 +108,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     delete_notes_with_entity = options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
     delete_notes_with_device = options.get(CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE)
     enable_device_notes = options.get(CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES)
-    show_markdown_toolbar = options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR)
+    hide_markdown_toolbar = options.get(
+        CONF_HIDE_MARKDOWN_TOOLBAR,
+        not options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR),
+    )
+    show_markdown_toolbar = not hide_markdown_toolbar
     confirm_delete = options.get(CONF_CONFIRM_DELETE, DEFAULT_CONFIRM_DELETE)
     hide_preview_button = options.get(CONF_HIDE_PREVIEW_BUTTON, DEFAULT_HIDE_PREVIEW_BUTTON)
     hide_markdown_hints = options.get(CONF_HIDE_MARKDOWN_HINTS, DEFAULT_HIDE_MARKDOWN_HINTS)
@@ -223,6 +229,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_DELETE_NOTES_WITH_DEVICE: delete_notes_with_device,
                 CONF_ENABLE_DEVICE_NOTES: enable_device_notes,
                 CONF_SHOW_MARKDOWN_TOOLBAR: show_markdown_toolbar,
+                CONF_HIDE_MARKDOWN_TOOLBAR: hide_markdown_toolbar,
                 CONF_CONFIRM_DELETE: confirm_delete,
                 CONF_HIDE_PREVIEW_BUTTON: hide_preview_button,
                 CONF_HIDE_MARKDOWN_HINTS: hide_markdown_hints,
@@ -797,7 +804,8 @@ class EntityNotesJSView(HomeAssistantView):
         hide_buttons_when_empty = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_WHEN_EMPTY, False)
         hide_buttons_until_focus = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, False)
         enable_device_notes = hass.data[DOMAIN]["config"].get(CONF_ENABLE_DEVICE_NOTES, True)
-        show_markdown_toolbar = hass.data[DOMAIN]["config"].get(CONF_SHOW_MARKDOWN_TOOLBAR, True)
+        hide_markdown_toolbar = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_TOOLBAR, DEFAULT_HIDE_MARKDOWN_TOOLBAR)
+        show_markdown_toolbar = not hide_markdown_toolbar
         confirm_delete = hass.data[DOMAIN]["config"].get(CONF_CONFIRM_DELETE, True)
         hide_preview_button = hass.data[DOMAIN]["config"].get(CONF_HIDE_PREVIEW_BUTTON, False)
         hide_markdown_hints = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_HINTS, False)
