@@ -145,6 +145,28 @@ class EntityNotesCard extends HTMLElement {
         return headers;
     }
 
+    async authenticatedFetch(url, options = {}) {
+        const ha = document.querySelector('home-assistant');
+        const hass = this.hass || (ha && ha.hass);
+
+        options.headers = options.headers || {};
+        if (options.body && !options.headers['Content-Type']) {
+            options.headers['Content-Type'] = 'application/json';
+        }
+
+        // Use HA's built-in fetch method, which automatically renews expired tokens
+        if (hass && typeof hass.fetchWithAuth === 'function') {
+            return await hass.fetchWithAuth(url, options);
+        }
+
+        // Fallback for unforeseen environments
+        const token = this.accessToken;
+        if (token) {
+            options.headers['Authorization'] = `Bearer ${token}`;
+        }
+        return await fetch(url, options);
+    }
+
     connectedCallback() {
         debugLog('Entity Notes: EntityNotesCard connected');
         this.render();
@@ -967,9 +989,8 @@ class EntityNotesCard extends HTMLElement {
                 const type = this.getAttribute('type') || 'entity';
                 
                 try {
-                    const response = await fetch('/api/entity_notes/render', {
+                    const response = await this.authenticatedFetch('/api/entity_notes/render', {
                         method: 'POST',
-                        headers: this.apiHeaders(true),
                         body: JSON.stringify({ 
                             note: text,
                             entity_id: type === 'entity' ? itemId : undefined,
@@ -1143,9 +1164,7 @@ class EntityNotesCard extends HTMLElement {
 
         try {
             const userName = encodeURIComponent(this.currentUserName);
-            const response = await fetch(`/api/${apiPath}/${itemId}?user=${userName}`, {
-                headers: this.apiHeaders()
-            });
+            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}?user=${userName}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -1210,9 +1229,8 @@ class EntityNotesCard extends HTMLElement {
         debugLog(`Entity Notes: Saving note for ${type} ${itemId}: ${note}`);
 
         try {
-            const response = await fetch(`/api/${apiPath}/${itemId}`, {
+            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}`, {
                 method: 'POST',
-                headers: this.apiHeaders(true),
                 body: JSON.stringify({ 
                     note,
                     user_name: this.currentUserName
@@ -1238,10 +1256,12 @@ class EntityNotesCard extends HTMLElement {
 
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
             } else {
-                console.error(`Entity Notes: Save failed for ${type}`);
+                console.error(`Entity Notes: Save failed for ${type} - HTTP ${response.status}`);
+                alert(`Entity Notes: Save failed (HTTP ${response.status}). Your session might have expired. Please reload the page.`);
             }
         } catch (error) {
             console.error(`Entity Notes: Error saving note for ${type}:`, error);
+            alert(`Entity Notes: Connection error during save. Please check your network connection.`);
         }
     }
 
@@ -1261,9 +1281,8 @@ class EntityNotesCard extends HTMLElement {
         debugLog(`Entity Notes: Deleting note for ${type} ${itemId}`);
 
         try {
-            const response = await fetch(`/api/${apiPath}/${itemId}`, {
-                method: 'DELETE',
-                headers: this.apiHeaders()
+            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}`, {
+                method: 'DELETE'
             });
 
             if (response.ok) {
@@ -1291,9 +1310,13 @@ class EntityNotesCard extends HTMLElement {
                 this.updateUndoRedoButtons();
                 this.autoResize();
                 debugLog(`Entity Notes: Note deleted successfully for ${type}`);
+            } else {
+                console.error(`Entity Notes: Delete failed for ${type} - HTTP ${response.status}`);
+                alert(`Entity Notes: Delete failed (HTTP ${response.status}). Your session might have expired. Please reload the page.`);
             }
         } catch (error) {
             console.error(`Entity Notes: Error deleting note for ${type}:`, error);
+            alert(`Entity Notes: Connection error during delete. Please check your network connection.`);
         }
     }
 }
