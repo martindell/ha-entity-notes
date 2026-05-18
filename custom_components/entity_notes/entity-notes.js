@@ -1024,6 +1024,16 @@ class EntityNotesCard extends HTMLElement {
     updateEditControlsVisibility() {
         const editControls = this.shadowRoot.querySelector('.entity-notes-edit-controls');
         const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
+
+        // In view mode (rendered note visible) keep the toolbar hidden regardless of other settings.
+        // The blur handler always calls this, which would otherwise re-show the toolbar below the note.
+        const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
+        if (!viewDiv.classList.contains('hidden')) {
+            editControls.classList.add('hidden');
+            markdownToolbar.classList.add('hidden');
+            return;
+        }
+
         const shouldShowMarkdownToolbar = window.entityNotes.showMarkdownToolbar === true ||
             window.entityNotes.showMarkdownToolbar === 'true';
         const shouldHideUntilFocus = window.entityNotes.hideMarkdownHints === true ||
