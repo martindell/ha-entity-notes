@@ -312,7 +312,7 @@ class EntityNotesCard extends HTMLElement {
                     justify-content: flex-start;
                     align-items: center;
                     margin-bottom: 4px;
-                    order: 2;
+                    order: 0;
                     flex-wrap: wrap;
                     gap: 4px;
                 }

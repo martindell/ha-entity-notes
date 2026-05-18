@@ -84,10 +84,18 @@ def build_options_schema(current_options: dict[str, Any] | None = None) -> vol.S
     current_options = current_options or {}
     schema_dict = {}
     for section_key, opts in SECTION_CONFIG:
-        section_schema = vol.Schema({
-            vol.Optional(key, default=option_default(key, default, current_options)): validator
-            for key, default, validator in opts
-        })
+        section_options = {}
+        for key, default, validator in opts:
+            schema_key = vol.Optional(key, default=option_default(key, default, current_options))
+            if key == CONF_EMPTY_NOTE_PLACEHOLDER:
+                schema_key = vol.Optional(
+                    key,
+                    description={
+                        "suggested_value": option_default(key, default, current_options)
+                    },
+                )
+            section_options[schema_key] = validator
+        section_schema = vol.Schema(section_options)
         schema_dict[vol.Required(section_key)] = section(section_schema, {"collapsed": True})
     return vol.Schema(schema_dict)
 
