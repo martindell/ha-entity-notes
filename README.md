@@ -217,6 +217,10 @@ Notes are included in normal Home Assistant backups. The integration also provid
 | `entity_notes.backup_notes` | `<config_directory>/entity_notes_backup.json` |
 | `entity_notes.restore_notes` | `<config_directory>/entity_notes_backup.json` |
 
+## Development Testing
+
+For testing unreleased changes on a Home Assistant system, see [Dev Testing In Home Assistant](docs/dev-testing.md).
+
 ## Troubleshooting
 
 ### Notes Do Not Appear
