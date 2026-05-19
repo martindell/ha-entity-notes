@@ -20,6 +20,7 @@
             "data": {
               "hide_buttons_when_empty": "Hide Save/Delete buttons when no note exists",
               "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+              "hide_char_count_until_focus": "Hide character count unless text area is focused",
               "confirm_delete": "Confirm before deleting a note",
               "delete_notes_with_entity": "Automatically delete notes when entities are removed"
             }
@@ -53,6 +54,7 @@
             "data": {
               "hide_buttons_when_empty": "Hide buttons when no note exists",
               "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+              "hide_char_count_until_focus": "Hide character count unless text area is focused",
               "confirm_delete": "Confirm before deleting a note",
               "delete_notes_with_entity": "Automatically delete notes when entities are removed"
             }
@@ -98,6 +100,7 @@
             "data": {
               "hide_buttons_when_empty": "Hide buttons when no note exists",
               "hide_buttons_until_focus": "Hide buttons unless text area is focused",
+              "hide_char_count_until_focus": "Hide character count unless text area is focused",
               "confirm_delete": "Confirm before deleting a note",
               "delete_notes_with_entity": "Automatically delete notes when entities are removed"
             }

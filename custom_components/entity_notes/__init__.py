@@ -23,6 +23,7 @@ from .const import (
     CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
     CONF_HIDE_BUTTONS_UNTIL_FOCUS,
+    CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS,
     CONF_DELETE_NOTES_WITH_ENTITY,
     CONF_DELETE_NOTES_WITH_DEVICE,
     CONF_ENABLE_DEVICE_NOTES,
@@ -38,6 +39,7 @@ from .const import (
     DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS,
+    DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS,
     DEFAULT_DELETE_NOTES_WITH_ENTITY,
     DEFAULT_DELETE_NOTES_WITH_DEVICE,
     DEFAULT_ENABLE_DEVICE_NOTES,
@@ -105,6 +107,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     auto_backup = options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
     hide_buttons_when_empty = options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
     hide_buttons_until_focus = options.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS)
+    hide_char_count_until_focus = options.get(CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS, DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS)
     delete_notes_with_entity = options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
     delete_notes_with_device = options.get(CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE)
     enable_device_notes = options.get(CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES)
@@ -225,6 +228,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_AUTO_BACKUP: auto_backup,
                 CONF_HIDE_BUTTONS_WHEN_EMPTY: hide_buttons_when_empty,
                 CONF_HIDE_BUTTONS_UNTIL_FOCUS: hide_buttons_until_focus,
+                CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS: hide_char_count_until_focus,
                 CONF_DELETE_NOTES_WITH_ENTITY: delete_notes_with_entity,
                 CONF_DELETE_NOTES_WITH_DEVICE: delete_notes_with_device,
                 CONF_ENABLE_DEVICE_NOTES: enable_device_notes,
@@ -803,6 +807,7 @@ class EntityNotesJSView(HomeAssistantView):
         max_note_length = hass.data[DOMAIN]["config"].get(CONF_MAX_NOTE_LENGTH, 200)
         hide_buttons_when_empty = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_WHEN_EMPTY, False)
         hide_buttons_until_focus = hass.data[DOMAIN]["config"].get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, False)
+        hide_char_count_until_focus = hass.data[DOMAIN]["config"].get(CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS, False)
         enable_device_notes = hass.data[DOMAIN]["config"].get(CONF_ENABLE_DEVICE_NOTES, True)
         hide_markdown_toolbar = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_TOOLBAR, DEFAULT_HIDE_MARKDOWN_TOOLBAR)
         show_markdown_toolbar = not hide_markdown_toolbar
@@ -828,6 +833,7 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{MAX_NOTE_LENGTH}}', str(max_note_length))
             js_content = js_content.replace('{{HIDE_BUTTONS_WHEN_EMPTY}}', str(hide_buttons_when_empty).lower())
             js_content = js_content.replace('{{HIDE_BUTTONS_UNTIL_FOCUS}}', str(hide_buttons_until_focus).lower())
+            js_content = js_content.replace('{{HIDE_CHAR_COUNT_UNTIL_FOCUS}}', str(hide_char_count_until_focus).lower())
             js_content = js_content.replace('{{ENABLE_DEVICE_NOTES}}', str(enable_device_notes).lower())
             js_content = js_content.replace('{{CONFIRM_DELETE}}', str(confirm_delete).lower())
             js_content = js_content.replace('{{SHOW_MARKDOWN_TOOLBAR}}', str(show_markdown_toolbar).lower())

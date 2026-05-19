@@ -7,6 +7,7 @@ window.entityNotes = {
     maxNoteLength: {{MAX_NOTE_LENGTH}},
     hideButtonsWhenEmpty: {{HIDE_BUTTONS_WHEN_EMPTY}},
     hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
+    hideCharCountUntilFocus: {{HIDE_CHAR_COUNT_UNTIL_FOCUS}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
     confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
@@ -895,6 +896,7 @@ class EntityNotesCard extends HTMLElement {
                 textarea.placeholder = localize('markdown_hints');
             }
             this.autoResize();
+            this.updateCharCountVisibility();
             this.updateButtonVisibility();
             this.updateEditControlsVisibility();
         });
@@ -909,6 +911,7 @@ class EntityNotesCard extends HTMLElement {
                 if (!this.shadowRoot.activeElement) {
                 this.switchToViewMode();
                 }
+                this.updateCharCountVisibility();
                 this.updateButtonVisibility();
                 this.updateEditControlsVisibility();
             }, 200);
@@ -1084,6 +1087,20 @@ class EntityNotesCard extends HTMLElement {
         charCount.classList.remove('warning', 'error');
         if (count > maxLength * 0.9) charCount.classList.add('warning');
         if (count >= maxLength) charCount.classList.add('error');
+        this.updateCharCountVisibility();
+    }
+
+    updateCharCountVisibility() {
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
+        if (!textarea || !charCount) return;
+
+        const hideUntilFocus = window.entityNotes.hideCharCountUntilFocus === true ||
+            window.entityNotes.hideCharCountUntilFocus === 'true';
+        const isTextareaVisible = !textarea.classList.contains('hidden');
+        const shouldShow = isTextareaVisible && (!hideUntilFocus || this.hasTextareaFocus());
+
+        charCount.style.display = shouldShow ? 'block' : 'none';
     }
 
     autoResize() {
@@ -1104,7 +1121,7 @@ class EntityNotesCard extends HTMLElement {
 
         viewDiv.classList.add('hidden');
         textarea.classList.remove('hidden');
-        charCount.style.display = 'block';
+        this.updateCharCountVisibility();
         
         this.updateEditControlsVisibility();
 
@@ -1205,6 +1222,7 @@ class EntityNotesCard extends HTMLElement {
                 textarea.classList.remove('hidden');
                 
                 this.updateEditControlsVisibility();
+                this.updateCharCountVisibility();
                 
                 this.isEditing = false;
                 this.updateUndoRedoButtons();
@@ -1299,7 +1317,7 @@ class EntityNotesCard extends HTMLElement {
                 // Ensure we return to empty edit mode cleanly
                 viewDiv.classList.add('hidden');
                 textarea.classList.remove('hidden');
-                this.shadowRoot.querySelector('.entity-notes-char-count').style.display = 'block';
+                this.updateCharCountVisibility();
                 this.isEditing = true;
                 
                 this.updateEditControlsVisibility();
