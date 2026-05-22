@@ -29,6 +29,7 @@ from .const import (
     CONF_ENABLE_DEVICE_NOTES,
     CONF_SHOW_MARKDOWN_TOOLBAR,
     CONF_HIDE_MARKDOWN_TOOLBAR,
+    CONF_HIDE_MARKDOWN_PLACEHOLDER,
     CONF_CONFIRM_DELETE,
     CONF_HIDE_PREVIEW_BUTTON,
     CONF_HIDE_MARKDOWN_HINTS,
@@ -46,6 +47,7 @@ from .const import (
     DEFAULT_CONFIRM_DELETE,
     DEFAULT_SHOW_MARKDOWN_TOOLBAR,
     DEFAULT_HIDE_MARKDOWN_TOOLBAR,
+    DEFAULT_HIDE_MARKDOWN_PLACEHOLDER,
     DEFAULT_HIDE_PREVIEW_BUTTON,
     DEFAULT_HIDE_MARKDOWN_HINTS,
     DEFAULT_EMPTY_NOTE_PLACEHOLDER,
@@ -116,6 +118,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         not options.get(CONF_SHOW_MARKDOWN_TOOLBAR, DEFAULT_SHOW_MARKDOWN_TOOLBAR),
     )
     show_markdown_toolbar = not hide_markdown_toolbar
+    hide_markdown_placeholder = options.get(CONF_HIDE_MARKDOWN_PLACEHOLDER, DEFAULT_HIDE_MARKDOWN_PLACEHOLDER)
     confirm_delete = options.get(CONF_CONFIRM_DELETE, DEFAULT_CONFIRM_DELETE)
     hide_preview_button = options.get(CONF_HIDE_PREVIEW_BUTTON, DEFAULT_HIDE_PREVIEW_BUTTON)
     hide_markdown_hints = options.get(CONF_HIDE_MARKDOWN_HINTS, DEFAULT_HIDE_MARKDOWN_HINTS)
@@ -234,6 +237,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_ENABLE_DEVICE_NOTES: enable_device_notes,
                 CONF_SHOW_MARKDOWN_TOOLBAR: show_markdown_toolbar,
                 CONF_HIDE_MARKDOWN_TOOLBAR: hide_markdown_toolbar,
+                CONF_HIDE_MARKDOWN_PLACEHOLDER: hide_markdown_placeholder,
                 CONF_CONFIRM_DELETE: confirm_delete,
                 CONF_HIDE_PREVIEW_BUTTON: hide_preview_button,
                 CONF_HIDE_MARKDOWN_HINTS: hide_markdown_hints,
@@ -800,6 +804,29 @@ class EntityNotesJSView(HomeAssistantView):
     name = "api:entity_notes_js"
     requires_auth = False
 
+    def _load_frontend_translations(self):
+        """Load frontend strings from Home Assistant translation files."""
+        translations_path = Path(__file__).parent / "translations"
+        translations = {}
+
+        for translation_file in translations_path.glob("*.json"):
+            try:
+                with open(translation_file, 'r') as f:
+                    translation_data = json.load(f)
+            except Exception as e:
+                _LOGGER.warning(
+                    "Could not load Entity Notes translation file %s: %s",
+                    translation_file,
+                    e,
+                )
+                continue
+
+            frontend_strings = translation_data.get("frontend")
+            if isinstance(frontend_strings, dict):
+                translations[translation_file.stem] = frontend_strings
+
+        return translations
+
     async def get(self, request):
         """Serve the JavaScript file."""
         hass = request.app["hass"]
@@ -811,6 +838,7 @@ class EntityNotesJSView(HomeAssistantView):
         enable_device_notes = hass.data[DOMAIN]["config"].get(CONF_ENABLE_DEVICE_NOTES, True)
         hide_markdown_toolbar = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_TOOLBAR, DEFAULT_HIDE_MARKDOWN_TOOLBAR)
         show_markdown_toolbar = not hide_markdown_toolbar
+        hide_markdown_placeholder = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_PLACEHOLDER, DEFAULT_HIDE_MARKDOWN_PLACEHOLDER)
         confirm_delete = hass.data[DOMAIN]["config"].get(CONF_CONFIRM_DELETE, True)
         hide_preview_button = hass.data[DOMAIN]["config"].get(CONF_HIDE_PREVIEW_BUTTON, False)
         hide_markdown_hints = hass.data[DOMAIN]["config"].get(CONF_HIDE_MARKDOWN_HINTS, False)
@@ -827,6 +855,7 @@ class EntityNotesJSView(HomeAssistantView):
                     return f.read()
 
             js_content = await hass.async_add_executor_job(read_file)
+            translations = await hass.async_add_executor_job(self._load_frontend_translations)
 
             # Replace configuration placeholders
             js_content = js_content.replace('{{DEBUG_LOGGING}}', str(debug_logging).lower())
@@ -837,10 +866,12 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{ENABLE_DEVICE_NOTES}}', str(enable_device_notes).lower())
             js_content = js_content.replace('{{CONFIRM_DELETE}}', str(confirm_delete).lower())
             js_content = js_content.replace('{{SHOW_MARKDOWN_TOOLBAR}}', str(show_markdown_toolbar).lower())
+            js_content = js_content.replace('{{HIDE_MARKDOWN_PLACEHOLDER}}', str(hide_markdown_placeholder).lower())
             js_content = js_content.replace('{{HIDE_PREVIEW_BUTTON}}', str(hide_preview_button).lower())
             js_content = js_content.replace('{{HIDE_MARKDOWN_HINTS}}', str(hide_markdown_hints).lower())
             js_content = js_content.replace('{{EMPTY_NOTE_PLACEHOLDER}}', json.dumps(empty_note_placeholder))
             js_content = js_content.replace('{{HIDE_LAST_MODIFIED}}', str(hide_last_modified).lower())
+            js_content = js_content.replace('{{FRONTEND_TRANSLATIONS}}', json.dumps(translations))
 
             return web.Response(
                 text=js_content,

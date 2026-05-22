@@ -11,42 +11,12 @@ window.entityNotes = {
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
     confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
+    hideMarkdownPlaceholder: {{HIDE_MARKDOWN_PLACEHOLDER}},
     hidePreviewButton: {{HIDE_PREVIEW_BUTTON}},
     hideMarkdownHints: {{HIDE_MARKDOWN_HINTS}},
     emptyNotePlaceholder: {{EMPTY_NOTE_PLACEHOLDER}},
     hideLastModified: {{HIDE_LAST_MODIFIED}},
-
-    strings: {
-        en: {
-            save: 'SAVE',
-            delete: 'DELETE',
-            preview: 'Preview',
-            add_note: 'Add a note...',
-            markdown_hints: 'Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)',
-            preview_empty: 'Preview (empty)',
-            confirm_delete: 'Are you sure you want to delete the note for {type} {item_id}?',
-            toolbar_toggle_preview: 'Toggle Live Preview',
-            toolbar_undo: 'Undo (Ctrl+Z)',
-            toolbar_redo: 'Redo (Ctrl+Y)',
-            toolbar_heading1: 'Heading 1',
-            toolbar_heading2: 'Heading 2',
-            toolbar_bold: 'Bold',
-            toolbar_italic: 'Italic',
-            toolbar_bullet_list: 'Bullet list',
-            toolbar_numbered_list: 'Numbered list',
-            toolbar_divider: 'Divider',
-            toolbar_inline_code: 'Inline Code',
-            toolbar_code_block: 'Code Block',
-            toolbar_insert_link: 'Insert Link',
-            toolbar_blockquote: 'Blockquote',
-            toolbar_strikethrough: 'Strikethrough',
-            error_loading_note: 'Error loading note.',
-            prompt_link_text: 'Enter link text:',
-            prompt_link_url: 'Enter URL:',
-        },
-        // Community translations — add your language here and open a pull request.
-        // Keys must match the 'en' block above. Missing keys fall back to English.
-    },
+    translations: {{FRONTEND_TRANSLATIONS}},
 
     // Convenience methods for users
     enableDebug: function() {
@@ -74,8 +44,10 @@ function infoLog(message) {
 function localize(key, replacements) {
     const ha = document.querySelector('home-assistant');
     const lang = ha?.hass?.language || 'en';
-    const strings = window.entityNotes.strings[lang] || window.entityNotes.strings['en'];
-    let str = strings[key] ?? window.entityNotes.strings['en'][key] ?? key;
+    const languageCode = lang.split('-')[0];
+    const translations = window.entityNotes.translations || {};
+    const strings = translations[lang] || translations[languageCode] || translations['en'] || {};
+    let str = strings[key] ?? translations['en']?.[key] ?? key;
     if (replacements) {
         for (const [k, v] of Object.entries(replacements)) {
             str = str.replace(`{${k}}`, v);
@@ -90,6 +62,13 @@ function emptyNotePlaceholder() {
         return customPlaceholder.trim();
     }
     return localize('add_note');
+}
+
+function markdownPlaceholder() {
+    if (window.entityNotes.hideMarkdownPlaceholder) {
+        return emptyNotePlaceholder();
+    }
+    return localize('markdown_hints');
 }
 
 class EntityNotesCard extends HTMLElement {
@@ -116,7 +95,7 @@ class EntityNotesCard extends HTMLElement {
         } catch (e) {
             debugLog('Entity Notes: Error getting user name: ' + e);
         }
-        return "User";
+        return localize('default_user');
     }
 
     get accessToken() {
@@ -178,7 +157,7 @@ class EntityNotesCard extends HTMLElement {
         const maxLength = window.entityNotes.maxNoteLength;
         const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
             `<button class="entity-notes-md-button" data-action="toggle-preview" title="${localize('toolbar_toggle_preview')}" style="width: auto; padding: 0 8px;" disabled>${localize('preview')}</button>`;
-        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? emptyNotePlaceholder() : localize('markdown_hints');
+        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? emptyNotePlaceholder() : markdownPlaceholder();
         this.shadowRoot.innerHTML = `
             <style>
                 .entity-notes-container {
@@ -893,7 +872,7 @@ class EntityNotesCard extends HTMLElement {
 
         textarea.addEventListener('focus', () => {
             if (window.entityNotes.hideMarkdownHints) {
-                textarea.placeholder = localize('markdown_hints');
+                textarea.placeholder = markdownPlaceholder();
             }
             this.autoResize();
             this.updateCharCountVisibility();
@@ -1276,11 +1255,11 @@ class EntityNotesCard extends HTMLElement {
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
             } else {
                 console.error(`Entity Notes: Save failed for ${type} - HTTP ${response.status}`);
-                alert(`Entity Notes: Save failed (HTTP ${response.status}). Your session might have expired. Please reload the page.`);
+                alert(localize('save_failed', { status: response.status }));
             }
         } catch (error) {
             console.error(`Entity Notes: Error saving note for ${type}:`, error);
-            alert(`Entity Notes: Connection error during save. Please check your network connection.`);
+            alert(localize('save_connection_error'));
         }
     }
 
@@ -1331,11 +1310,11 @@ class EntityNotesCard extends HTMLElement {
                 debugLog(`Entity Notes: Note deleted successfully for ${type}`);
             } else {
                 console.error(`Entity Notes: Delete failed for ${type} - HTTP ${response.status}`);
-                alert(`Entity Notes: Delete failed (HTTP ${response.status}). Your session might have expired. Please reload the page.`);
+                alert(localize('delete_failed', { status: response.status }));
             }
         } catch (error) {
             console.error(`Entity Notes: Error deleting note for ${type}:`, error);
-            alert(`Entity Notes: Connection error during delete. Please check your network connection.`);
+            alert(localize('delete_connection_error'));
         }
     }
 }
