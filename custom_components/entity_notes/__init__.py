@@ -800,6 +800,29 @@ class EntityNotesJSView(HomeAssistantView):
     name = "api:entity_notes_js"
     requires_auth = False
 
+    def _load_frontend_translations(self):
+        """Load frontend strings from Home Assistant translation files."""
+        translations_path = Path(__file__).parent / "translations"
+        translations = {}
+
+        for translation_file in translations_path.glob("*.json"):
+            try:
+                with open(translation_file, 'r') as f:
+                    translation_data = json.load(f)
+            except Exception as e:
+                _LOGGER.warning(
+                    "Could not load Entity Notes translation file %s: %s",
+                    translation_file,
+                    e,
+                )
+                continue
+
+            frontend_strings = translation_data.get("frontend")
+            if isinstance(frontend_strings, dict):
+                translations[translation_file.stem] = frontend_strings
+
+        return translations
+
     async def get(self, request):
         """Serve the JavaScript file."""
         hass = request.app["hass"]
@@ -827,6 +850,7 @@ class EntityNotesJSView(HomeAssistantView):
                     return f.read()
 
             js_content = await hass.async_add_executor_job(read_file)
+            translations = await hass.async_add_executor_job(self._load_frontend_translations)
 
             # Replace configuration placeholders
             js_content = js_content.replace('{{DEBUG_LOGGING}}', str(debug_logging).lower())
@@ -841,6 +865,7 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{HIDE_MARKDOWN_HINTS}}', str(hide_markdown_hints).lower())
             js_content = js_content.replace('{{EMPTY_NOTE_PLACEHOLDER}}', json.dumps(empty_note_placeholder))
             js_content = js_content.replace('{{HIDE_LAST_MODIFIED}}', str(hide_last_modified).lower())
+            js_content = js_content.replace('{{FRONTEND_TRANSLATIONS}}', json.dumps(translations))
 
             return web.Response(
                 text=js_content,
