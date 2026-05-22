@@ -11,6 +11,7 @@ window.entityNotes = {
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
     confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
+    hideMarkdownPlaceholder: {{HIDE_MARKDOWN_PLACEHOLDER}},
     hidePreviewButton: {{HIDE_PREVIEW_BUTTON}},
     hideMarkdownHints: {{HIDE_MARKDOWN_HINTS}},
     emptyNotePlaceholder: {{EMPTY_NOTE_PLACEHOLDER}},
@@ -61,6 +62,13 @@ function emptyNotePlaceholder() {
         return customPlaceholder.trim();
     }
     return localize('add_note');
+}
+
+function markdownPlaceholder() {
+    if (window.entityNotes.hideMarkdownPlaceholder) {
+        return emptyNotePlaceholder();
+    }
+    return localize('markdown_hints');
 }
 
 class EntityNotesCard extends HTMLElement {
@@ -149,7 +157,7 @@ class EntityNotesCard extends HTMLElement {
         const maxLength = window.entityNotes.maxNoteLength;
         const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
             `<button class="entity-notes-md-button" data-action="toggle-preview" title="${localize('toolbar_toggle_preview')}" style="width: auto; padding: 0 8px;" disabled>${localize('preview')}</button>`;
-        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? emptyNotePlaceholder() : localize('markdown_hints');
+        const initialPlaceholder = window.entityNotes.hideMarkdownHints ? emptyNotePlaceholder() : markdownPlaceholder();
         this.shadowRoot.innerHTML = `
             <style>
                 .entity-notes-container {
@@ -864,7 +872,7 @@ class EntityNotesCard extends HTMLElement {
 
         textarea.addEventListener('focus', () => {
             if (window.entityNotes.hideMarkdownHints) {
-                textarea.placeholder = localize('markdown_hints');
+                textarea.placeholder = markdownPlaceholder();
             }
             this.autoResize();
             this.updateCharCountVisibility();

@@ -9,6 +9,7 @@
             "name": "Display",
             "data": {
               "hide_markdown_toolbar": "Hide markdown formatting toolbar",
+              "hide_markdown_placeholder": "Hide markdown placeholder text",
               "hide_preview_button": "Hide the Preview button",
               "hide_markdown_hints": "Use compact empty note field until clicked",
               "empty_note_placeholder": "Custom empty note placeholder",
@@ -43,6 +44,7 @@
             "name": "Display",
             "data": {
               "hide_markdown_toolbar": "Hide markdown formatting toolbar",
+              "hide_markdown_placeholder": "Hide markdown placeholder text",
               "hide_preview_button": "Hide the Preview button",
               "hide_markdown_hints": "Use compact empty note field until clicked",
               "empty_note_placeholder": "Custom empty note placeholder",
@@ -89,6 +91,7 @@
             "name": "Display",
             "data": {
               "hide_markdown_toolbar": "Hide markdown formatting toolbar",
+              "hide_markdown_placeholder": "Hide markdown placeholder text",
               "hide_preview_button": "Hide the Preview button",
               "hide_markdown_hints": "Use compact empty note field until clicked",
               "empty_note_placeholder": "Custom empty note placeholder",
