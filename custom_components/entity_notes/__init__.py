@@ -805,8 +805,8 @@ class EntityNotesJSView(HomeAssistantView):
     requires_auth = False
 
     def _load_frontend_translations(self):
-        """Load frontend strings from Home Assistant translation files."""
-        translations_path = Path(__file__).parent / "translations"
+        """Load frontend strings from files Hassfest does not validate."""
+        translations_path = Path(__file__).parent / "frontend_translations"
         translations = {}
 
         for translation_file in translations_path.glob("*.json"):
@@ -821,9 +821,8 @@ class EntityNotesJSView(HomeAssistantView):
                 )
                 continue
 
-            frontend_strings = translation_data.get("frontend")
-            if isinstance(frontend_strings, dict):
-                translations[translation_file.stem] = frontend_strings
+            if isinstance(translation_data, dict):
+                translations[translation_file.stem] = translation_data
 
         return translations
 

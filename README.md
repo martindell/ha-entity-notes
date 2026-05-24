@@ -251,23 +251,20 @@ Thanks to [@Bjoern3D](https://github.com/Bjoern3D) for the Markdown toolbar, und
 
 ### Adding A Translation
 
-All frontend UI strings live in the `frontend` section of the integration translation files under `custom_components/entity_notes/translations/`. The correct language is picked automatically at runtime based on each user's Home Assistant language setting, falling back to English for any missing keys.
+Frontend note-editor strings live in `custom_components/entity_notes/frontend_translations/`. Home Assistant config and options strings live in `custom_components/entity_notes/translations/`. The correct language is picked automatically at runtime based on each user's Home Assistant language setting, falling back to English for any missing keys.
 
 To add a new language:
 
-1. Copy `custom_components/entity_notes/translations/en.json` to a new file using the appropriate [BCP 47 language code](https://developers.home-assistant.io/docs/internationalization/core/#supported-languages) (e.g. `fr.json` for French, `de.json` for German).
-2. Translate the values in the `frontend`, `config`, and `options` sections:
+1. Copy `custom_components/entity_notes/frontend_translations/en.json` to a new file using the appropriate [BCP 47 language code](https://developers.home-assistant.io/docs/internationalization/core/#supported-languages) (e.g. `fr.json` for French, `de.json` for German).
+2. Translate every key in that frontend translation file. Any key you omit will automatically fall back to English.
+3. If you also want to translate the integration settings screens, copy `custom_components/entity_notes/translations/en.json` to the same language code and translate the `config` and `options` sections.
 
 ```json
 {
-  "frontend": {
-    "save": "ENREGISTRER",
-    "delete": "SUPPRIMER"
-  }
+  "save": "ENREGISTRER",
+  "delete": "SUPPRIMER"
 }
 ```
-
-3. Translate every key from the `frontend` section. Any key you omit will automatically fall back to English.
 4. Open a pull request.
 
 ## Support
