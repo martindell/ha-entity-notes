@@ -12,6 +12,33 @@ c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='draft';c.au
 c=card();c.initialState='original';c.shadowRoot.querySelector('.entity-notes-textarea').value='oversized';let message;ctx.alert=s=>message=s;c.authenticatedFetch=async()=>({ok:false,status:400,json:async()=>({error:'Note exceeds maximum length'})});await c.saveNote();assert.equal(c.initialState,'original');assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'oversized');assert.equal(message,'Note exceeds maximum length');console.log('PASS: rejected save preserves draft and displays validation message');
 c=card();c.initialState='original';c.renderedNote='original';ctx.window.entityNotes.confirmDelete=false;c.authenticatedFetch=async()=>({ok:true});await c.deleteNote();assert.equal(c.initialState,'');assert.equal(c.renderedNote,'');console.log('PASS: delete clears cached saved state');
 
+// Deleting an unsaved/already-deleted note clears the old draft, but not newer typing.
+for (const type of ['entity','device']) {
+ for (const hadSavedNote of [false,true]) {
+  for (const editWhilePending of [false,true]) {
+   c=card();ctx.window.entityNotes.confirmDelete=false;
+   c.getAttribute=n=>n==='type'?type:n===type+'-id'?(type==='entity'?'sensor.test':'device1'):null;
+   c.hasExistingNote=hadSavedNote;c.initialState=hadSavedNote?'Saved elsewhere':'';c.renderedNote=c.initialState;c.updatedAt=hadSavedNote?123:null;
+   const textarea=c.shadowRoot.querySelector('.entity-notes-textarea');textarea.value='Original draft';
+   let finish,alerted=false;c.authenticatedFetch=()=>new Promise(resolve=>finish=resolve);ctx.alert=()=>alerted=true;
+   const pending=c.deleteNote();if(editWhilePending)textarea.value='Newer draft';
+   finish({ok:false,status:404,json:async()=>({status:'not_found'})});await pending;
+   assert.equal(textarea.value,editWhilePending?'Newer draft':'');
+   assert.equal(c.hasExistingNote,false);assert.equal(c.initialState,'');assert.equal(c.renderedNote,'');assert.equal(c.updatedAt,null);
+   assert.equal(c.writePending,false);assert.equal(alerted,false);
+  }
+ }
+}
+console.log('PASS: absent entity/device deletion clears unsaved/stale notes and preserves newer drafts');
+for (const payload of [null,{}, {error:'Route not found'}, 'invalid-json']) {
+ c=card();ctx.window.entityNotes.confirmDelete=false;c.initialState='Saved';c.hasExistingNote=true;
+ c.shadowRoot.querySelector('.entity-notes-textarea').value='Draft';let alerted=false;ctx.alert=()=>alerted=true;
+ c.authenticatedFetch=async()=>({ok:false,status:404,json:async()=>{if(payload==='invalid-json')throw Error('Invalid JSON');return payload;}});
+ await c.deleteNote();assert.equal(c.initialState,'Saved');assert.equal(c.hasExistingNote,true);
+ assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'Draft');assert.equal(alerted,true);assert.equal(c.writePending,false);
+}
+console.log('PASS: generic and malformed 404 responses remain errors and preserve drafts');
+
 // A new card cannot mutate storage before its first successful load.
 assert.equal(new ctx.Card().noteLoaded,false);
 c=card();c.noteLoaded=false;c.render();
