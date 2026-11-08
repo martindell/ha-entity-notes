@@ -64,3 +64,6 @@ DEFAULT_HIDE_LAST_MODIFIED = False
 
 # File paths
 FRONTEND_JS_PATH = "entity-notes.js"
+
+# Fired without note contents after any successful storage mutation.
+EVENT_STORAGE_UPDATED = f"{DOMAIN}_storage_updated"

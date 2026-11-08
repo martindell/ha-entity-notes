@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, PropertyMock, patch
+from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
@@ -184,5 +184,6 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         logger.setLevel(logging.WARNING)
         with patch.object(integration, '_LOGGER', logger), patch.object(integration, '_DEBUG_PREVIOUS_LEVEL', None):
             integration._configure_debug_logging(True)
-            self.assertTrue(await integration.async_unload_entry(self.hass, None))
+            with patch.object(self.hass, 'config_entries', Mock(async_unload_platforms=AsyncMock(return_value=True))):
+                self.assertTrue(await integration.async_unload_entry(self.hass, None))
             self.assertEqual(logger.level, logging.WARNING)

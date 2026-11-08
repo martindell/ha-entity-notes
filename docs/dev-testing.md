@@ -102,3 +102,25 @@ injected at the Store I/O hook; no live configuration is touched. HTTP request
 objects are small fakes, so this is not an end-to-end HTTP/browser test. The two
 package versions cover both storage calling conventions, not every intervening
 HA release or frontend version. Keep the existing live UI checks before release.
+
+## Dashboard Notes Sensor
+
+After deploying and restarting, check `sensor.entity_notes` in **Developer Tools
+→ States**. Its state should count saved entity plus device notes, with text in
+its `entity_notes` and `device_notes` attributes.
+
+1. Add the Markdown card example from the README using an entity with a note.
+2. Edit that note in its dialog. The card should update without a refresh, even
+   when the total number of notes stays the same.
+3. Test a device note with the device-card example, then delete it. The card
+   should become blank. An entity with no note should also display blank text.
+4. Save a note containing `{{ 1 + 1 }}`. The dashboard should show the expression
+   literally, while the integration's own preview still renders it.
+5. Rename a test entity: its note should move to the new ID in the sensor. Update
+   the card's lookup to the new ID.
+6. Reload the integration and confirm the sensor returns with the same ID and
+   saved notes. If testing backup/restore, use disposable notes or take a fresh
+   backup first; restored text should appear in the card automatically.
+
+Automated HA tests cover platform setup/unload/reload, legacy strings and current
+note records, mutations, failed writes, raw Jinja text and recorder exclusions.

@@ -5,6 +5,7 @@ import logging
 import voluptuous as vol
 import time
 from homeassistant.core import HomeAssistant
+from homeassistant.const import Platform
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.typing import ConfigType
@@ -21,6 +22,7 @@ from .validation import validate_target, validate_note_payload
 
 from .const import (
     DOMAIN,
+    EVENT_STORAGE_UPDATED,
     STORAGE_VERSION,
     STORAGE_KEY,
     MAX_NOTE_LENGTH,
@@ -352,6 +354,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         entry.async_on_unload(entry.add_update_listener(options_updated))
 
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
+
         _LOGGER.info("Entity Notes integration setup completed successfully")
         return True
 
@@ -363,9 +367,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Entity Notes integration")
-    _configure_debug_logging(False)
 
     try:
+        if not await hass.config_entries.async_unload_platforms(entry, [Platform.SENSOR]):
+            return False
+        _configure_debug_logging(False)
+
         # Remove event listeners if they exist
         if DOMAIN in hass.data:
             if hass.data[DOMAIN].get("entity_listener_remove"):
@@ -439,6 +446,7 @@ async def _update_notes(hass: HomeAssistant, mutate):
             return result
         await data["store"].async_save(proposed)
         data.update(proposed)
+        hass.bus.async_fire(EVENT_STORAGE_UPDATED)
         return result
 
 
