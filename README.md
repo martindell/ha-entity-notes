@@ -64,6 +64,9 @@ Entity Notes adds a notes panel to Home Assistant entity and device dialogs, so 
 3. Search for **Entity Notes**.
 4. Add the integration and choose your preferred options.
 
+To change settings later, use the existing integration’s options. Adding Entity Notes
+again will leave the existing integration and dashboard sensor unchanged.
+
 If a frontend option does not appear to change immediately, reload the integration and hard-refresh your browser or clear the Home Assistant app cache.
 
 ## Usage
@@ -73,6 +76,9 @@ If a frontend option does not appear to change immediately, reload the integrati
 3. Add or edit your note.
 4. Select **Save**.
 5. Select **Delete** to remove the note.
+
+Save and Delete remain disabled until the existing note has loaded. If loading
+fails, select **Retry** before editing.
 
 Device notes work in the same way from device dialogs.
 
@@ -251,7 +257,7 @@ Options are grouped into three sections in the integration settings.
 | Hide buttons until focus | `false` | Show Save/Delete only while editing |
 | Confirm before delete | `true` | Ask before deleting a note |
 | Delete notes with entity | `true` | Remove a note only when its entity is deleted from the entity registry; disabling or unloading preserves it |
-| Delete notes with device | `true` | Remove a device note when its device is deleted from the device registry |
+| Delete notes with device | `true` | Remove a device note when its device is deleted from the device registry, even when its editor is disabled |
 
 ### Advanced
 

@@ -3,7 +3,7 @@
   "delete": "DELETE",
   "preview": "Preview",
   "add_note": "Add a note...",
-  "markdown_hints": "Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~strikethrough~)",
+  "markdown_hints": "Notes (# H1, ## H2, **bold**, *italic*, - bullets, 1. numbered, --- divider, `inline code`, > blockquote, ~~strikethrough~~)",
   "preview_empty": "Preview (empty)",
   "confirm_delete": "Are you sure you want to delete the note for {type} {item_id}?",
   "toolbar_toggle_preview": "Toggle Live Preview",
@@ -28,5 +28,7 @@
   "save_failed": "Entity Notes: Save failed (HTTP {status}). Your session might have expired. Please reload the page.",
   "save_connection_error": "Entity Notes: Connection error during save. Please check your network connection.",
   "delete_failed": "Entity Notes: Delete failed (HTTP {status}). Your session might have expired. Please reload the page.",
-  "delete_connection_error": "Entity Notes: Connection error during delete. Please check your network connection."
+  "delete_connection_error": "Entity Notes: Connection error during delete. Please check your network connection.",
+  "loading_note": "Loading note…",
+  "retry_loading_note": "Retry"
 }

@@ -145,67 +145,20 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors = {}
 
-        # Check if already configured and handle automatic upgrade
-        existing_entries = self._async_current_entries()
-        current_options = existing_entries[0].options if existing_entries else {}
-        if existing_entries and user_input is None:
-            # Get current options from existing entry to pre-populate form
-            current_options = existing_entries[0].options if existing_entries[0].options else {}
-
-            # Show form with upgrade notice for first-time display
-            return self.async_show_form(
-                step_id="user",
-                data_schema=build_options_schema(current_options),
-                errors=errors,
-                description_placeholders={
-                    "description": "Entity Notes is already installed and will be automatically upgraded with your new settings. Your existing notes and data will be preserved during the upgrade process."
-                },
-            )
+        # Never replace an existing entry: its ID owns the dashboard sensor.
+        if self._async_current_entries():
+            return self.async_abort(reason="already_configured")
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
 
         if user_input is not None:
             errors = validate_options(user_input)
-
             if not errors:
-                # Handle automatic upgrade of existing installation
-                if existing_entries:
-                    try:
-                        _LOGGER.info("Automatically upgrading existing Entity Notes installation")
-
-                        # Remove existing entries one by one
-                        for entry in existing_entries:
-                            _LOGGER.debug(f"Removing existing entry: {entry.entry_id} (title: {entry.title})")
-                            await self.hass.config_entries.async_remove(entry.entry_id)
-
-                        _LOGGER.info("Successfully removed existing Entity Notes entries")
-
-                    except Exception as ex:
-                        _LOGGER.error(f"Error during Entity Notes upgrade: {ex}")
-                        errors["base"] = "upgrade_failed"
-                        return self.async_show_form(
-                            step_id="user",
-                            data_schema=build_options_schema(),
-                            errors=errors,
-                            description_placeholders={
-                                "description": "Error during upgrade. Please try again or manually remove the existing Entity Notes integration first from Settings > Devices & Services."
-                            },
-                        )
-
-                # Create new entry (either fresh install or after successful upgrade)
-                await self.async_set_unique_id(DOMAIN)
-
-                # Create the new entry with user's settings
-                entry_result = self.async_create_entry(
+                return self.async_create_entry(
                     title="Entity Notes",
                     data={},
-                    options=normalize_options(user_input, current_options),
+                    options=normalize_options(user_input),
                 )
-
-                if existing_entries:
-                    _LOGGER.info("Entity Notes upgrade completed successfully")
-                else:
-                    _LOGGER.info("Entity Notes installation completed successfully")
-
-                return entry_result
 
         # Show configuration form for fresh install
         return self.async_show_form(

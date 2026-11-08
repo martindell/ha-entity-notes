@@ -1,4 +1,5 @@
 """Dashboard notes exercised through real HA platform setup and templates."""
+import asyncio
 import inspect
 import json
 from pathlib import Path
@@ -9,11 +10,13 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from homeassistant import loader
 from homeassistant.config_entries import ConfigEntry, ConfigEntries
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from homeassistant.helpers.template import Template
 from homeassistant.setup import async_setup_component
 
+from custom_components.entity_notes import _set_note
 from custom_components.entity_notes.const import EVENT_STORAGE_UPDATED
 
 
@@ -144,3 +147,74 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
     async def test_note_attributes_excluded_from_recording(self):
         info = self.hass.states.get('sensor.entity_notes').state_info
         self.assertTrue({'entity_notes', 'device_notes'} <= info['unrecorded_attributes'])
+
+    async def test_reload_drains_save_and_rejects_queued_and_new_writes(self):
+        store = self.hass.data['entity_notes']['store']
+        old_data = self.hass.data['entity_notes']
+        started, release = asyncio.Event(), asyncio.Event()
+        original_write = store._async_write_data
+
+        async def delayed_write(*args, **kwargs):
+            started.set()
+            await release.wait()
+            await original_write(*args, **kwargs)
+
+        async def wait_for_unload():
+            while not old_data.get('unloading'):
+                await asyncio.sleep(0)
+
+        with patch.object(store, '_async_write_data', delayed_write):
+            saving = asyncio.create_task(_set_note(self.hass, 'entity', 'sensor.battery', 'Saved during reload'))
+            await asyncio.wait_for(started.wait(), 2)
+            queued = asyncio.create_task(_set_note(self.hass, 'entity', 'sensor.queued', 'Must retry'))
+            await asyncio.sleep(0)
+            reloading = asyncio.create_task(self.hass.config_entries.async_reload(self.entry.entry_id))
+            try:
+                await asyncio.wait_for(wait_for_unload(), 2)
+                self.assertFalse(reloading.done())
+                with self.assertRaises(HomeAssistantError):
+                    await _set_note(self.hass, 'entity', 'sensor.new', 'Must retry')
+            finally:
+                release.set()
+            await saving
+            with self.assertRaises(HomeAssistantError):
+                await queued
+            self.assertTrue(await asyncio.wait_for(reloading, 2))
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.state().attributes['entity_notes']['sensor.battery'], 'Saved during reload')
+        await self.call('set_note', {'entity_id': 'sensor.other', 'note': 'Unrelated save'})
+        disk = json.loads((Path(self.temp.name) / '.storage/entity_notes.notes').read_text())
+        self.assertEqual(disk['data']['entity_notes']['sensor.battery']['text'], 'Saved during reload')
+        self.assertNotIn('sensor.queued', disk['data']['entity_notes'])
+        self.assertNotIn('sensor.new', disk['data']['entity_notes'])
+
+    async def test_duplicate_setup_preserves_sensor_identity(self):
+        registry = er.async_get(self.hass)
+        before = registry.async_get('sensor.entity_notes')
+        registry.async_update_entity('sensor.entity_notes', new_entity_id='sensor.my_notes')
+        await self.hass.async_block_till_done()
+        for source, data in [('user', None), ('import', {})]:
+            result = await self.hass.config_entries.flow.async_init(
+                'entity_notes', context={'source': source}, data=data,
+            )
+            self.assertEqual(result['type'], 'abort')
+            self.assertEqual(result['reason'], 'already_configured')
+        self.assertIs(self.hass.config_entries.async_get_entry(self.entry.entry_id), self.entry)
+        self.assertEqual(registry.async_get('sensor.my_notes').unique_id, before.unique_id)
+        self.assertIsNotNone(self.hass.states.get('sensor.my_notes'))
+        self.assertIsNone(registry.async_get('sensor.entity_notes'))
+
+    async def test_device_cleanup_independent_of_editor_visibility(self):
+        for delete_notes in (True, False):
+            device = dr.async_get(self.hass).async_get_or_create(
+                config_entry_id=self.entry.entry_id,
+                identifiers={('entity_notes', f'hidden-editor-{delete_notes}')},
+            )
+            await self.call('set_device_note', {'device_id': device.id, 'note': 'Hidden editor note'})
+            self.hass.config_entries.async_update_entry(self.entry, options={
+                'enable_device_notes': False, 'delete_notes_with_device': delete_notes,
+            })
+            await self.hass.async_block_till_done()
+            dr.async_get(self.hass).async_remove_device(device.id)
+            await self.hass.async_block_till_done()
+            self.assertEqual(device.id in self.state().attributes['device_notes'], not delete_notes)

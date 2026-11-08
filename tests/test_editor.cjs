@@ -3,7 +3,7 @@ let source=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf
 new vm.Script(source);console.log('PASS: frontend parses after configuration substitution');
 source=source.slice(0,source.indexOf('// Register the custom element'))+'\nglobalThis.Card = EntityNotesCard;';
 const ctx={console,window:{location:{origin:'https://ha.local'}},document:{querySelector:()=>null},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{}};vm.createContext(ctx);vm.runInContext(source,ctx);
-function card(){const c=new ctx.Card();const els={};c.shadowRoot.querySelector=s=>els[s]??=( {value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false}},focus(){}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
+function card(){const c=new ctx.Card();c.noteLoaded=true;const els={};c.shadowRoot.querySelector=s=>els[s]??=( {value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false}},focus(){}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
 (async()=>{
 let c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='saved A';c.initialState='saved A';c.renderedNote='saved A';c.switchToEditMode();c.shadowRoot.querySelector('.entity-notes-textarea').value='unsaved B';c.switchToViewMode();c.switchToEditMode();c.switchToViewMode();assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'unsaved B');assert.equal(c.initialState,'saved A');console.log('PASS: repeated edit/blur preserves draft rendering and saved baseline');
 c=card();ctx.window.entityNotes.hideMarkdownPlaceholder=true;ctx.window.entityNotes.emptyNotePlaceholder='Use "notes" <here>';c.render();assert(!c.shadowRoot.innerHTML.includes('placeholder="Use'));assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').placeholder,'Use "notes" <here>');console.log('PASS: custom placeholder assigned as text');
@@ -11,6 +11,44 @@ for(const x of ['<img src=x onerror=alert(1)>','[x](javascript:alert(1))']){cons
 c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='draft';c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'canonical',rendered_note:'canonical',updated_at:123})});await c.saveNote();assert.equal(c.initialState,'canonical');assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'canonical');console.log('PASS: save uses canonical server text');
 c=card();c.initialState='original';c.shadowRoot.querySelector('.entity-notes-textarea').value='oversized';let message;ctx.alert=s=>message=s;c.authenticatedFetch=async()=>({ok:false,status:400,json:async()=>({error:'Note exceeds maximum length'})});await c.saveNote();assert.equal(c.initialState,'original');assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'oversized');assert.equal(message,'Note exceeds maximum length');console.log('PASS: rejected save preserves draft and displays validation message');
 c=card();c.initialState='original';c.renderedNote='original';ctx.window.entityNotes.confirmDelete=false;c.authenticatedFetch=async()=>({ok:true});await c.deleteNote();assert.equal(c.initialState,'');assert.equal(c.renderedNote,'');console.log('PASS: delete clears cached saved state');
+
+// A new card cannot mutate storage before its first successful load.
+assert.equal(new ctx.Card().noteLoaded,false);
+c=card();c.noteLoaded=false;c.render();
+assert(c.shadowRoot.innerHTML.includes('entity-notes-save" disabled'));
+assert(c.shadowRoot.innerHTML.includes('entity-notes-delete" disabled'));
+c=card();c.noteLoaded=false;
+let resolveLoad,requests=[];
+c.authenticatedFetch=(url,options)=>{requests.push({url,options});return new Promise(resolve=>resolveLoad=resolve);};
+const loading=c.loadNote();
+assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,true);
+assert.equal(c.shadowRoot.querySelector('.entity-notes-delete').disabled,true);
+await c.saveNote();await c.deleteNote();await c.loadNote();c.switchToEditMode();
+assert.equal(c.isEditing,false);assert.equal(requests.length,1);
+resolveLoad({ok:true,json:async()=>({note:'Existing note',rendered_note:'Existing note'})});await loading;
+assert.equal(c.noteLoaded,true);assert.equal(c.initialState,'Existing note');
+assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,false);
+console.log('PASS: initial load blocks save, delete, editing and duplicate loads');
+for (const networkFailure of [false,true]) {
+ c=card();c.noteLoaded=false;
+ c.authenticatedFetch=async()=>{if(networkFailure)throw Error('offline');return {ok:false,status:500};};
+ await c.loadNote();
+ assert.equal(c.noteLoaded,false);assert.equal(c.loadPending,false);
+ assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,true);
+ assert(c.shadowRoot.querySelector('.entity-notes-view').innerHTML.includes('<button'));
+ c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'Recovered',rendered_note:'Recovered'})});
+ await c.loadNote();assert.equal(c.noteLoaded,true);assert.equal(c.initialState,'Recovered');
+ assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,false);
+}
+console.log('PASS: failed initial loads keep writes locked and allow retry');
+c=card();assert.equal(c.renderMarkdown('~~strikethrough~~'),'<del>strikethrough</del>');
+assert.equal(c.renderMarkdown('~legacy~'),'<del>legacy</del>');
+assert.equal(c.renderMarkdown('~~<script>~~'),'<del>&lt;script&gt;</del>');
+let formatArea=c.shadowRoot.querySelector('.entity-notes-textarea');
+formatArea.value='word';formatArea.selectionStart=0;formatArea.selectionEnd=4;
+formatArea.setRangeText=(text)=>{formatArea.value=text;};formatArea.dispatchEvent=()=>{};
+c.formatText('strikethrough');assert.equal(formatArea.value,'~~word~~');
+console.log('PASS: standard and legacy strikethrough render safely; toolbar uses standard syntax');
 
 // An empty rendered template is a valid result, distinct from a missing result.
 c=card();c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:"{{ '' }}",rendered_note:'',updated_at:123})});await c.loadNote();assert.equal(c.renderedNote,'');assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'');c.switchToEditMode();c.switchToViewMode();assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'');c.updateLivePreview();assert.equal(c.shadowRoot.querySelector('.entity-notes-live-preview').innerHTML,'');console.log('PASS: empty template stays empty on load, edit/blur and cached preview');

@@ -79,7 +79,7 @@
       "upgrade_failed": "Failed to upgrade existing installation"
     },
     "abort": {
-      "already_configured": "Entity Notes is already configured",
+      "already_configured": "Entity Notes is already configured. Use the existing integration’s options to change its settings.",
       "reconfigure_successful": "Configuration updated successfully"
     }
   },
