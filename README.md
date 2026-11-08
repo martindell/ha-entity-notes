@@ -132,11 +132,13 @@ Options are grouped into three sections in the integration settings.
 | Hide buttons until focus | `false` | Show Save/Delete only while editing |
 | Confirm before delete | `true` | Ask before deleting a note |
 | Delete notes with entity | `true` | Remove a note only when its entity is deleted from the entity registry; disabling or unloading preserves it |
+| Delete notes with device | `true` | Remove a device note when its device is deleted from the device registry |
 
 ### Advanced
 
 | Option | Default | Description |
 | --- | --- | --- |
+| Enable device notes | `true` | Show the notes editor in device settings |
 | Debug logging | `false` | Enable detailed logs for troubleshooting |
 | Maximum note length | `200` | Character limit for each note, from 50 to 2000 |
 

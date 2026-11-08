@@ -1,10 +1,11 @@
 """Exercise the integration with real HA services, storage and HTTP responses."""
 import asyncio
 import json
+import logging
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
@@ -16,7 +17,10 @@ from custom_components.entity_notes import (
     EntityNotesStore, EntityNotesView, DeviceNotesView, EntityNotesRenderView,
     async_register_services,
 )
-from custom_components.entity_notes.config_flow import build_options_schema
+import custom_components.entity_notes as integration
+from custom_components.entity_notes.config_flow import (
+    build_options_schema, normalize_options, EntityNotesOptionsFlow,
+)
 
 class IntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -128,3 +132,57 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
                 response = await getattr(EntityNotesView(), method)(self.request({'note': 'changed'}), item_id)
                 self.assertEqual(response.status, 400)
         self.assertEqual(self.hass.data['entity_notes']['entity_notes']['sensor.test'], 'original')
+
+    async def test_device_preferences_survive_options_save(self):
+        existing = {'enable_device_notes': False, 'delete_notes_with_device': False}
+        form_data = build_options_schema(existing)({'display': {'hide_last_modified': True},
+                                                   'behaviour': {}, 'advanced': {}})
+        with patch.object(EntityNotesOptionsFlow, 'config_entry', new_callable=PropertyMock) as entry:
+            entry.return_value = type('Entry', (), {'options': existing})()
+            result = await EntityNotesOptionsFlow().async_step_init(form_data)
+        self.assertFalse(result['data']['enable_device_notes'])
+        self.assertFalse(result['data']['delete_notes_with_device'])
+        self.assertTrue(result['data']['hide_last_modified'])
+
+    async def test_device_preferences_defaults_and_explicit_changes(self):
+        existing = {'enable_device_notes': False, 'delete_notes_with_device': False}
+        preserved = normalize_options({'display': {}, 'behaviour': {}, 'advanced': {}}, existing)
+        self.assertFalse(preserved['enable_device_notes'])
+        self.assertFalse(preserved['delete_notes_with_device'])
+        changed = normalize_options({'advanced': {'enable_device_notes': True},
+                                     'behaviour': {'delete_notes_with_device': True}}, existing)
+        self.assertTrue(changed['enable_device_notes'])
+        self.assertTrue(changed['delete_notes_with_device'])
+        fresh = normalize_options({})
+        self.assertTrue(fresh['enable_device_notes'])
+        self.assertTrue(fresh['delete_notes_with_device'])
+
+    async def test_debug_toggle_restores_previous_level(self):
+        logger = logging.getLogger('entity_notes_test_debug')
+        for initial in (logging.NOTSET, logging.WARNING, logging.DEBUG):
+            logger.setLevel(initial)
+            with patch.object(integration, '_LOGGER', logger), patch.object(integration, '_DEBUG_PREVIOUS_LEVEL', None):
+                integration._configure_debug_logging(True)
+                integration._configure_debug_logging(True)
+                self.assertEqual(logger.level, logging.DEBUG)
+                integration._configure_debug_logging(False)
+                self.assertEqual(logger.level, initial)
+                integration._configure_debug_logging(False)
+                self.assertEqual(logger.level, initial)
+
+    async def test_debug_toggle_respects_new_external_level(self):
+        logger = logging.getLogger('entity_notes_test_external')
+        logger.setLevel(logging.WARNING)
+        with patch.object(integration, '_LOGGER', logger), patch.object(integration, '_DEBUG_PREVIOUS_LEVEL', None):
+            integration._configure_debug_logging(True)
+            logger.setLevel(logging.ERROR)
+            integration._configure_debug_logging(False)
+            self.assertEqual(logger.level, logging.ERROR)
+
+    async def test_unload_restores_logger_level(self):
+        logger = logging.getLogger('entity_notes_test_unload')
+        logger.setLevel(logging.WARNING)
+        with patch.object(integration, '_LOGGER', logger), patch.object(integration, '_DEBUG_PREVIOUS_LEVEL', None):
+            integration._configure_debug_logging(True)
+            self.assertTrue(await integration.async_unload_entry(self.hass, None))
+            self.assertEqual(logger.level, logging.WARNING)

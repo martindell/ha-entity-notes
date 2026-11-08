@@ -26,6 +26,7 @@ validation = importlib.util.module_from_spec(validation_spec)
 validation_spec.loader.exec_module(validation)
 TREE = ast.parse((ROOT / '__init__.py').read_text())
 ENV = {'HomeAssistant': object, 'deepcopy': deepcopy, 'time': time,
+       'logging': logging, '_DEBUG_PREVIOUS_LEVEL': None,
        '_LOGGER': logging.getLogger('tests'), 'validate_notes': storage.validate_notes,
        'atomic_write_json': storage.atomic_write_json, 'json': json, 'vol': vol,
        'HomeAssistantError': RuntimeError, 'ServiceValidationError': ValueError,
@@ -160,9 +161,9 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         method.returns = None
         for arg in method.args.args:
             arg.annotation = None
-        env = {'validate_options': lambda data: {}, 'normalize_options': lambda data: data}
+        env = {'validate_options': lambda data: {}, 'normalize_options': lambda data, current=None: data}
         exec(compile(ast.Module(body=[method], type_ignores=[]), '<options>', 'exec'), env)
-        flow = NS(async_create_entry=lambda **kw: kw)
+        flow = NS(async_create_entry=lambda **kw: kw, config_entry=NS(options={}))
         result = await env['async_step_init'](flow, {'max_note_length': 300})
         self.assertEqual(result['data'], {'max_note_length': 300})
 
