@@ -82,6 +82,7 @@ class EntityNotesCard extends HTMLElement {
         this.isPreviewVisible = false;
         this.updatedAt = null;
         this.renderedNote = null;
+        this.writePending = false;
         debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
@@ -1217,12 +1218,23 @@ class EntityNotesCard extends HTMLElement {
         }
     }
 
+    setWritePending(pending) {
+        this.writePending = pending;
+        for (const selector of ['.entity-notes-save', '.entity-notes-delete']) {
+            const button = this.shadowRoot.querySelector(selector);
+            if (button) button.disabled = pending;
+        }
+    }
+
     async saveNote() {
+        if (this.writePending) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
         const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
-        const note = textarea.value.trim();
+        const originalDraft = textarea.value;
+        const note = originalDraft.trim();
+        this.setWritePending(true);
 
         debugLog(`Entity Notes: Saving note for ${type} ${itemId}: ${note}`);
 
@@ -1240,16 +1252,17 @@ class EntityNotesCard extends HTMLElement {
                 this.updatedAt = result.updated_at ?? null;
                 this.renderedNote = result.rendered_note ?? result.note ?? note;
                 const savedNote = result.note ?? note;
-                if (textarea.value.trim() === note) textarea.value = savedNote;
+                const draftUnchanged = textarea.value === originalDraft;
+                if (draftUnchanged) textarea.value = savedNote;
                 this.initialState = savedNote;
                 this.updateTimestampDisplay();
 
                 // Update the existing note status
-                this.hasExistingNote = note.length > 0;
+                this.hasExistingNote = savedNote.length > 0;
                 this.updateButtonVisibility();
 
                 // Switch to view mode after saving if there's content
-                if (note.length > 0) {
+                if (draftUnchanged && savedNote.length > 0) {
                     this.isEditing = true; // Set to true so switchToViewMode will work
                     this.switchToViewMode();
                 }
@@ -1263,10 +1276,13 @@ class EntityNotesCard extends HTMLElement {
         } catch (error) {
             console.error(`Entity Notes: Error saving note for ${type}:`, error);
             alert(localize('save_connection_error'));
+        } finally {
+            this.setWritePending(false);
         }
     }
 
     async deleteNote() {
+        if (this.writePending) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
         const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
@@ -1279,6 +1295,9 @@ class EntityNotesCard extends HTMLElement {
             }
         }
 
+        const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+        const originalDraft = textarea.value;
+        this.setWritePending(true);
         debugLog(`Entity Notes: Deleting note for ${type} ${itemId}`);
 
         try {
@@ -1290,7 +1309,8 @@ class EntityNotesCard extends HTMLElement {
                 const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
                 const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
 
-                textarea.value = '';
+                // A slow delete must not erase text entered while it was pending.
+                if (textarea.value === originalDraft) textarea.value = '';
                 this.initialState = '';
                 this.renderedNote = '';
                 this.redoState = null;
@@ -1321,6 +1341,8 @@ class EntityNotesCard extends HTMLElement {
         } catch (error) {
             console.error(`Entity Notes: Error deleting note for ${type}:`, error);
             alert(localize('delete_connection_error'));
+        } finally {
+            this.setWritePending(false);
         }
     }
 }
