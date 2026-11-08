@@ -19,6 +19,7 @@ Entity Notes adds a notes panel to Home Assistant entity and device dialogs, so 
 - Format notes with Markdown using the built-in toolbar
 - Preview Markdown and Jinja2 templates before saving
 - Insert Home Assistant template values such as `{{ states('sensor.example') }}`
+- [Display saved notes in dashboard Markdown cards](#notes-in-dashboard-cards)
 - Track when each note was last updated
 - Keep notes across restarts using Home Assistant storage
 - Include notes in regular Home Assistant backups
@@ -124,8 +125,19 @@ backup restores. Existing notes are available after startup. Note contents are
 excluded from recorder history; the original notes storage and backups remain
 unchanged. The attributes are readable like other Home Assistant entity states.
 
-For example, add a **Markdown** card and replace `sensor.example_battery` with
-your battery entity ID:
+### Add A Note To Your Dashboard
+
+1. Save a note on an entity using its **More info → Notes** editor. For example,
+   save `Last charged on 8 November` on a battery sensor.
+2. Open **Developer Tools → States** and search for `sensor.entity_notes`.
+   Check that your entity ID and note appear in its `entity_notes` attribute.
+3. Edit your dashboard, select **Add card**, then choose **Manual**.
+4. Paste the YAML below, replacing every occurrence of `sensor.example_battery`
+   with your battery entity ID, then save the card.
+5. Edit and save the original note again. The card updates automatically without
+   a browser refresh. Deleting the note clears its text from the card.
+
+This example shows the battery name and percentage above its saved note:
 
 ```yaml
 type: markdown
@@ -135,7 +147,15 @@ content: |
   {{ (state_attr('sensor.entity_notes', 'entity_notes') or {}).get('sensor.example_battery', '') }}
 ```
 
-To display the note for that entity's device instead:
+### Show A Device Note
+
+To add a device note, go to **Settings → Devices & services → Devices**, open
+that device, select the pencil button to edit it, and find **Notes** in the
+dialog. Save your note there.
+
+Add another Manual card with the example below. Replace `sensor.example_battery`
+with an entity belonging to that device; `device_id()` looks up its device ID for
+you. This reads the device's note, which is separate from the entity's own note:
 
 ```yaml
 type: markdown
@@ -143,12 +163,63 @@ content: |
   {{ (state_attr('sensor.entity_notes', 'device_notes') or {}).get(device_id('sensor.example_battery'), '') }}
 ```
 
-The same expression can be used in a custom card's secondary text field **if
+### List All Entity Notes
+
+For a notes overview, paste this into a Manual card. No entity IDs need changing:
+
+```yaml
+type: markdown
+title: Entity notes
+content: |
+  {% set notes = state_attr('sensor.entity_notes', 'entity_notes') or {} %}
+  {% for entity, note in notes.items() %}
+  **{{ entity }}**
+
+  {{ note }}
+
+  ---
+  {% else %}
+  No entity notes to display.
+  {% endfor %}
+```
+
+### List All Device Notes
+
+This version lists device IDs and their saved notes:
+
+```yaml
+type: markdown
+title: Device notes
+content: |
+  {% set notes = state_attr('sensor.entity_notes', 'device_notes') or {} %}
+  {% for device, note in notes.items() %}
+  **{{ device }}**
+
+  {{ note }}
+
+  ---
+  {% else %}
+  No device notes to display.
+  {% endfor %}
+```
+
+Both overview cards update when notes are edited or deleted. Markdown formatting,
+such as lists and links, is displayed by the card. These cards are for viewing;
+continue to edit notes through the entity or device dialog.
+
+### Templates And Troubleshooting
+
+A single-note lookup expression can also be used in a custom card's secondary
+text field **if
 that card supports Home Assistant Jinja templates**.
 
 Missing notes display as empty text. If Home Assistant gives the notes sensor a
 different entity ID (or you rename it), replace `sensor.entity_notes` in the
 examples with its actual ID from **Developer Tools → States**.
+
+If the sensor is missing after an upgrade, restart Home Assistant and confirm
+that Entity Notes is loaded. If a single-note card is blank, check the lookup ID
+against the sensor's attributes; an entity note and its device note are separate.
 
 The attributes contain raw saved text, including Markdown. Jinja written in the
 card YAML works normally, but Jinja inside a retrieved note is not evaluated a
