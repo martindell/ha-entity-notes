@@ -398,7 +398,7 @@ class EntityNotesCard extends HTMLElement {
                 </div>
                 <textarea
                     class="entity-notes-textarea hidden"
-                    placeholder="${initialPlaceholder}"
+                    placeholder=""
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
@@ -413,6 +413,7 @@ class EntityNotesCard extends HTMLElement {
                 </div>
             </div>
         `;
+        this.shadowRoot.querySelector('.entity-notes-textarea').placeholder = initialPlaceholder;
     }
 
     renderMarkdown(text) {
@@ -1094,7 +1095,6 @@ class EntityNotesCard extends HTMLElement {
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
-        this.initialState = textarea.value;
         this.redoState = null;
         this.updateUndoRedoButtons();
 
@@ -1238,8 +1238,10 @@ class EntityNotesCard extends HTMLElement {
             if (response.ok) {
                 const result = await response.json();
                 this.updatedAt = result.updated_at || Math.floor(Date.now() / 1000);
-                this.renderedNote = result.rendered_note || note;
-                this.initialState = note; // Update initial state so it matches the newly saved note
+                this.renderedNote = result.rendered_note ?? result.note ?? note;
+                const savedNote = result.note ?? note;
+                if (textarea.value.trim() === note) textarea.value = savedNote;
+                this.initialState = savedNote;
                 this.updateTimestampDisplay();
 
                 // Update the existing note status
@@ -1255,7 +1257,8 @@ class EntityNotesCard extends HTMLElement {
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
             } else {
                 console.error(`Entity Notes: Save failed for ${type} - HTTP ${response.status}`);
-                alert(localize('save_failed', { status: response.status }));
+                const error = await response.json().catch(() => ({}));
+                alert(error.error || localize('save_failed', { status: response.status }));
             }
         } catch (error) {
             console.error(`Entity Notes: Error saving note for ${type}:`, error);
@@ -1288,6 +1291,9 @@ class EntityNotesCard extends HTMLElement {
                 const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
 
                 textarea.value = '';
+                this.initialState = '';
+                this.renderedNote = '';
+                this.redoState = null;
                 viewDiv.innerHTML = '';
                 
                 this.updatedAt = null;

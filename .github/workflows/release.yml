@@ -104,6 +104,11 @@ jobs:
           echo "$COMMITS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Build integration archive
+        run: |
+          cd custom_components/entity_notes
+          zip -r ../../entity_notes.zip . -x '*/__pycache__/*' '*.pyc'
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -126,5 +131,6 @@ jobs:
             1. Download `entity_notes.zip` from the assets below
             2. Extract to `custom_components/entity_notes`
             3. Restart Home Assistant
+          files: entity_notes.zip
           draft: false
           prerelease: false

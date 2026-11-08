@@ -131,7 +131,7 @@ Options are grouped into three sections in the integration settings.
 | Hide buttons when no note exists | `true` | Hide Save/Delete until there is note content |
 | Hide buttons until focus | `false` | Show Save/Delete only while editing |
 | Confirm before delete | `true` | Ask before deleting a note |
-| Delete notes with entity | `true` | Remove an entity note when the entity is removed |
+| Delete notes with entity | `true` | Remove a note only when its entity is deleted from the entity registry; disabling or unloading preserves it |
 
 ### Advanced
 
@@ -139,7 +139,6 @@ Options are grouped into three sections in the integration settings.
 | --- | --- | --- |
 | Debug logging | `false` | Enable detailed logs for troubleshooting |
 | Maximum note length | `200` | Character limit for each note, from 50 to 2000 |
-| Enable automatic backups | `true` | Include notes in Home Assistant backups |
 
 ## Services
 
@@ -193,6 +192,8 @@ The REST API is used by the frontend and requires Home Assistant authentication.
 | `POST` | `/api/device_notes/{device_id}` | Save a device note |
 | `DELETE` | `/api/device_notes/{device_id}` | Delete a device note |
 
+Overlong notes are rejected with HTTP 400; existing notes are preserved. Successful saves return the stored `note`, `rendered_note` and `updated_at`.
+
 `POST` requests expect JSON:
 
 ```json
@@ -211,7 +212,7 @@ Notes are stored locally in Home Assistant at:
 
 You should treat this file as Home Assistant-managed storage and avoid editing it directly.
 
-Notes are included in normal Home Assistant backups. The integration also provides manual backup and restore services:
+Notes are included in normal Home Assistant backups; no integration-specific toggle is needed. The integration also provides manual backup and restore services:
 
 | Service | Backup file |
 | --- | --- |

@@ -14,7 +14,6 @@ from .const import (
     DOMAIN,
     CONF_DEBUG_LOGGING,
     CONF_MAX_NOTE_LENGTH,
-    CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
     CONF_HIDE_BUTTONS_UNTIL_FOCUS,
     CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS,
@@ -29,7 +28,6 @@ from .const import (
     CONF_HIDE_LAST_MODIFIED,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
-    DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS,
     DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS,
@@ -70,7 +68,6 @@ SECTION_CONFIG = [
     (SECTION_ADVANCED, [
         (CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING, bool),
         (CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH, vol.All(int, vol.Range(min=50, max=2000))),
-        (CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP, bool),
     ]),
 ]
 
@@ -223,12 +220,10 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors = validate_options(user_input)
 
             if not errors:
-                return self.async_update_reload_and_abort(
-                    entry,
-                    data={},
-                    options=normalize_options(user_input),
-                    reason="reconfigure_successful",
+                self.hass.config_entries.async_update_entry(
+                    entry, data={}, options=normalize_options(user_input)
                 )
+                return self.async_abort(reason="reconfigure_successful")
 
         current_options = entry.options or {}
         return self.async_show_form(
@@ -268,9 +263,7 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                     data=normalize_options(user_input)
                 )
 
-                # Automatically reload the integration to apply the new settings
-                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-
+                # The entry update listener reloads after HA commits these options.
                 return result
 
         current_options = self.config_entry.options or {}

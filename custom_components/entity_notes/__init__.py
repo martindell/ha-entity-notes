@@ -1,4 +1,6 @@
 """Entity Notes integration for Home Assistant."""
+import asyncio
+from copy import deepcopy
 import logging
 import voluptuous as vol
 import time
@@ -13,6 +15,8 @@ import json
 import os
 from pathlib import Path
 
+from .storage_utils import atomic_write_json, validate_notes
+
 from .const import (
     DOMAIN,
     STORAGE_VERSION,
@@ -20,7 +24,6 @@ from .const import (
     MAX_NOTE_LENGTH,
     CONF_DEBUG_LOGGING,
     CONF_MAX_NOTE_LENGTH,
-    CONF_AUTO_BACKUP,
     CONF_HIDE_BUTTONS_WHEN_EMPTY,
     CONF_HIDE_BUTTONS_UNTIL_FOCUS,
     CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS,
@@ -37,7 +40,6 @@ from .const import (
     CONF_HIDE_LAST_MODIFIED,
     DEFAULT_DEBUG_LOGGING,
     DEFAULT_MAX_NOTE_LENGTH,
-    DEFAULT_AUTO_BACKUP,
     DEFAULT_HIDE_BUTTONS_WHEN_EMPTY,
     DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS,
     DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS,
@@ -91,6 +93,27 @@ NOTE_TARGETS = {
 }
 
 
+class EntityNotesStore(Store):
+    """Surface write failures which the HA Store normally only logs.
+
+    All callers serialize saves through write_lock. Keep the underlying Store's
+    atomic I/O, cache invalidation and shutdown behaviour.
+    """
+
+    async def async_save(self, data):
+        self._note_write_error = None
+        await super().async_save(data)
+        if self._note_write_error is not None:
+            raise self._note_write_error
+
+    async def _async_write_data(self, data):
+        try:
+            await super()._async_write_data(data)
+        except Exception as error:
+            self._note_write_error = error
+            raise
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Entity Notes integration from configuration.yaml."""
     # This is for backward compatibility with configuration.yaml
@@ -106,7 +129,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     options = entry.options or {}
     debug_logging = options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
     max_note_length = options.get(CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH)
-    auto_backup = options.get(CONF_AUTO_BACKUP, DEFAULT_AUTO_BACKUP)
     hide_buttons_when_empty = options.get(CONF_HIDE_BUTTONS_WHEN_EMPTY, DEFAULT_HIDE_BUTTONS_WHEN_EMPTY)
     hide_buttons_until_focus = options.get(CONF_HIDE_BUTTONS_UNTIL_FOCUS, DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS)
     hide_char_count_until_focus = options.get(CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS, DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS)
@@ -156,13 +178,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         backup_path = Path(hass.config.path(".storage")) / "entity_notes.notes.backup_v1"
 
                         def _write_backup():
-                            with open(backup_path, 'w') as f:
-                                json.dump(file_data, f, indent=2)
+                            atomic_write_json(backup_path, file_data)
 
                         await hass.async_add_executor_job(_write_backup)
                         _LOGGER.warning("Created backup at: %s", backup_path)
                     except Exception as backup_error:
                         _LOGGER.error("Failed to create backup: %s", backup_error)
+                        return False
 
                     # Prepare migrated data in v2 format
                     migrated_data = {
@@ -177,8 +199,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                     # Write migrated file asynchronously
                     def _write_migrated():
-                        with open(storage_path, 'w') as f:
-                            json.dump(migrated_data, f, indent=2)
+                        validate_notes(migrated_data["data"])
+                        atomic_write_json(storage_path, migrated_data)
 
                     await hass.async_add_executor_job(_write_migrated)
 
@@ -189,14 +211,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.error("Error during migration: %s", e)
                 import traceback
                 _LOGGER.error("Traceback: %s", traceback.format_exc())
+                return False
 
         # Initialize storage (now v2 format if migration happened)
         _LOGGER.debug("Initializing storage")
-        store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        store = EntityNotesStore(hass, STORAGE_VERSION, STORAGE_KEY)
 
         # Load existing notes
         try:
             stored_data = await store.async_load()
+
+            if stored_data is not None:
+                validate_notes(stored_data)
 
             # Extract entity and device notes from stored data
             entity_notes_data = stored_data.get("entity_notes", {}) if stored_data else {}
@@ -223,12 +249,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN] = {
             "store": store,
+            "write_lock": asyncio.Lock(),
             "entity_notes": entity_notes_data,
             "device_notes": device_notes_data,
             "config": {
                 CONF_DEBUG_LOGGING: debug_logging,
                 CONF_MAX_NOTE_LENGTH: max_note_length,
-                CONF_AUTO_BACKUP: auto_backup,
                 CONF_HIDE_BUTTONS_WHEN_EMPTY: hide_buttons_when_empty,
                 CONF_HIDE_BUTTONS_UNTIL_FOCUS: hide_buttons_until_focus,
                 CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS: hide_char_count_until_focus,
@@ -273,77 +299,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Register services
         await async_register_services(hass)
 
-        # Set up entity removal tracking if enabled
-        if delete_notes_with_entity:
-            async def entity_removed_listener(event):
-                """Handle entity removal events."""
-                entity_id = event.data.get("entity_id")
-                old_state = event.data.get("old_state")
-                new_state = event.data.get("new_state")
+        # State removal also happens on disable/unload; only registry removal
+        # is a permanent deletion. Registry renames preserve the note.
+        from homeassistant.helpers import entity_registry as er, device_registry as dr
 
-                # Entity was removed if new_state is None and old_state existed
-                if new_state is None and old_state is not None and entity_id:
-                    entity_notes_data = hass.data[DOMAIN]["entity_notes"]
+        async def entity_registry_listener(event):
+            entity_id = event.data.get("entity_id")
+            if event.data.get("action") == "remove" and delete_notes_with_entity:
+                await _delete_note(hass, "entity", entity_id)
+            elif event.data.get("action") == "update":
+                old_id = event.data.get("changes", {}).get("entity_id")
+                if old_id and entity_id:
+                    def rename(notes):
+                        if old_id in notes["entity_notes"]:
+                            notes["entity_notes"][entity_id] = notes["entity_notes"].pop(old_id)
+                    await _update_notes(hass, rename)
 
-                    # Check if we have a note for this entity
-                    if entity_id in entity_notes_data:
-                        store = hass.data[DOMAIN]["store"]
-                        del entity_notes_data[entity_id]
+        hass.data[DOMAIN]["entity_listener_remove"] = hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED, entity_registry_listener
+        )
 
-                        # Save both entity and device notes
-                        await store.async_save({
-                            "entity_notes": entity_notes_data,
-                            "device_notes": hass.data[DOMAIN]["device_notes"]
-                        })
-
-                        # Fire event
-                        hass.bus.async_fire(EVENT_NOTES_UPDATED, {"entity_id": entity_id, "note": ""})
-
-                        if debug_logging:
-                            _LOGGER.debug("Deleted note for removed entity: %s", entity_id)
-                        else:
-                            _LOGGER.info("Deleted note for removed entity: %s", entity_id)
-
-            # Listen for state_changed events and store the removal callable
-            entity_listener_remove = hass.bus.async_listen("state_changed", entity_removed_listener)
-            hass.data[DOMAIN]["entity_listener_remove"] = entity_listener_remove
-            _LOGGER.debug("Entity removal tracking enabled")
-
-        # Set up device removal tracking if enabled
         if enable_device_notes and delete_notes_with_device:
-            from homeassistant.helpers import device_registry as dr
-
             async def device_removed_listener(event):
-                """Handle device removal events."""
                 if event.data.get("action") == "remove":
-                    device_id = event.data.get("device_id")
+                    await _delete_note(hass, "device", event.data.get("device_id"))
 
-                    if device_id:
-                        device_notes_data = hass.data[DOMAIN]["device_notes"]
+            hass.data[DOMAIN]["device_listener_remove"] = hass.bus.async_listen(
+                dr.EVENT_DEVICE_REGISTRY_UPDATED, device_removed_listener
+            )
 
-                        # Check if we have a note for this device
-                        if device_id in device_notes_data:
-                            store = hass.data[DOMAIN]["store"]
-                            del device_notes_data[device_id]
+        async def options_updated(hass, updated_entry):
+            await hass.config_entries.async_reload(updated_entry.entry_id)
 
-                            # Save both entity and device notes
-                            await store.async_save({
-                                "entity_notes": hass.data[DOMAIN]["entity_notes"],
-                                "device_notes": device_notes_data
-                            })
-
-                            # Fire event
-                            hass.bus.async_fire(EVENT_DEVICE_NOTES_UPDATED, {"device_id": device_id, "note": ""})
-
-                            if debug_logging:
-                                _LOGGER.debug("Deleted note for removed device: %s", device_id)
-                            else:
-                                _LOGGER.info("Deleted note for removed device: %s", device_id)
-
-            # Listen for device registry events
-            device_listener_remove = hass.bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, device_removed_listener)
-            hass.data[DOMAIN]["device_listener_remove"] = device_listener_remove
-            _LOGGER.debug("Device removal tracking enabled")
+        entry.async_on_unload(entry.add_update_listener(options_updated))
 
         _LOGGER.info("Entity Notes integration setup completed successfully")
         return True
@@ -421,12 +409,17 @@ def _note_text_and_updated(raw_note):
     return raw_note, None
 
 
-async def _save_notes(hass: HomeAssistant) -> None:
-    """Persist entity and device notes together."""
-    await hass.data[DOMAIN]["store"].async_save({
-        "entity_notes": hass.data[DOMAIN]["entity_notes"],
-        "device_notes": hass.data[DOMAIN]["device_notes"],
-    })
+async def _update_notes(hass: HomeAssistant, mutate):
+    """Serialise writes and publish changes only after successful persistence."""
+    data = hass.data[DOMAIN]
+    async with data["write_lock"]:
+        proposed = deepcopy({key: data[key] for key in ("entity_notes", "device_notes")})
+        result = mutate(proposed)
+        if proposed == {key: data[key] for key in ("entity_notes", "device_notes")}:
+            return result
+        await data["store"].async_save(proposed)
+        data.update(proposed)
+        return result
 
 
 def _render_note(hass: HomeAssistant, note_type, item_id, note, user_name):
@@ -461,32 +454,25 @@ def _log_note_change(hass: HomeAssistant, log_changes, message, *args) -> None:
 async def _set_note(hass: HomeAssistant, note_type, item_id, note, log_changes=True):
     """Set or remove a note and return its saved state."""
     target = _note_target(note_type)
-    notes_data = _notes_data(hass, note_type)
     max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
     note = str(note or "")
 
     if len(note) > max_length:
-        note = note[:max_length]
-        _LOGGER.warning(
-            "Note truncated to %d characters for %s",
-            max_length,
-            _note_log_target(note_type, item_id),
-        )
+        raise ValueError(f"Note exceeds the maximum length of {max_length} characters")
 
     note_text = note.strip()
-    updated_at = None
-    if note_text:
-        updated_at = int(time.time())
-        notes_data[item_id] = {
-            "text": note_text,
-            "updated_at": updated_at,
-        }
-        _log_note_change(hass, log_changes, "Set note for %s", _note_log_target(note_type, item_id))
-    else:
-        notes_data.pop(item_id, None)
-        _log_note_change(hass, log_changes, "Removed note for %s", _note_log_target(note_type, item_id))
+    updated_at = int(time.time()) if note_text else None
 
-    await _save_notes(hass)
+    def mutate(notes):
+        if note_text:
+            notes[target["store_key"]][item_id] = {
+                "text": note_text, "updated_at": updated_at,
+            }
+        else:
+            notes[target["store_key"]].pop(item_id, None)
+
+    await _update_notes(hass, mutate)
+    _log_note_change(hass, log_changes, "Updated note for %s", _note_log_target(note_type, item_id))
     hass.bus.async_fire(target["event"], {target["id_field"]: item_id, "note": note_text})
     return note_text, updated_at
 
@@ -494,12 +480,15 @@ async def _set_note(hass: HomeAssistant, note_type, item_id, note, log_changes=T
 async def _delete_note(hass: HomeAssistant, note_type, item_id, log_changes=True):
     """Delete a note if it exists."""
     target = _note_target(note_type)
-    notes_data = _notes_data(hass, note_type)
-    if item_id not in notes_data:
-        return False
+    def mutate(notes):
+        values = notes[target["store_key"]]
+        if item_id not in values:
+            return False
+        del values[item_id]
+        return True
 
-    del notes_data[item_id]
-    await _save_notes(hass)
+    if not await _update_notes(hass, mutate):
+        return False
     hass.bus.async_fire(target["event"], {target["id_field"]: item_id, "note": ""})
     _log_note_change(hass, log_changes, "Deleted note for %s", _note_log_target(note_type, item_id))
     return True
@@ -566,20 +555,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def backup_notes_service(call):
         """Backup all notes to a file."""
-        entity_notes_data = hass.data[DOMAIN]["entity_notes"]
-        device_notes_data = hass.data[DOMAIN]["device_notes"]
+        snapshot = deepcopy({key: hass.data[DOMAIN][key] for key in ("entity_notes", "device_notes")})
         backup_path = hass.config.path("entity_notes_backup.json")
 
         try:
             # Use async_add_executor_job to avoid blocking the event loop
-            def write_backup():
-                with open(backup_path, "w") as f:
-                    json.dump({
-                        "entity_notes": entity_notes_data,
-                        "device_notes": device_notes_data
-                    }, f, indent=2)
-
-            await hass.async_add_executor_job(write_backup)
+            await hass.async_add_executor_job(atomic_write_json, backup_path, snapshot)
             _LOGGER.info("Notes backed up to %s", backup_path)
         except Exception as e:
             _LOGGER.error("Failed to backup notes: %s", e)
@@ -596,20 +577,17 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
             backup_data = await hass.async_add_executor_job(read_backup)
 
-            store = hass.data[DOMAIN]["store"]
+            if not isinstance(backup_data, dict):
+                raise ValueError("Backup must be an object")
+            if "entity_notes" not in backup_data and "device_notes" not in backup_data:
+                backup_data = {"entity_notes": backup_data, "device_notes": {}}
+            validate_notes(backup_data)
 
-            # Handle both old and new backup formats
-            if "entity_notes" in backup_data:
-                hass.data[DOMAIN]["entity_notes"].update(backup_data.get("entity_notes", {}))
-                hass.data[DOMAIN]["device_notes"].update(backup_data.get("device_notes", {}))
-            else:
-                # Old format - assume all are entity notes
-                hass.data[DOMAIN]["entity_notes"].update(backup_data)
+            def restore(notes):
+                for key in ("entity_notes", "device_notes"):
+                    notes[key].update(backup_data.get(key, {}))
 
-            await store.async_save({
-                "entity_notes": hass.data[DOMAIN]["entity_notes"],
-                "device_notes": hass.data[DOMAIN]["device_notes"]
-            })
+            await _update_notes(hass, restore)
             _LOGGER.info("Notes restored from %s", backup_path)
         except Exception as e:
             _LOGGER.error("Failed to restore notes: %s", e)
@@ -696,10 +674,13 @@ class NotesView(HomeAssistantView):
 
             return web.json_response({
                 "status": "success",
+                "note": note,
                 "updated_at": updated_at,
                 "rendered_note": rendered_note,
             })
 
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
         except Exception as e:
             _LOGGER.error("Error saving note for %s: %s", _note_log_target(self.note_type, item_id), e)
             return web.json_response({"error": str(e)}, status=500)
