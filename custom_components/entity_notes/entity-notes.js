@@ -1325,7 +1325,14 @@ class EntityNotesCard extends HTMLElement {
                 method: 'DELETE'
             });
 
-            if (response.ok) {
+            // Only the notes API's explicit "already absent" response is success.
+            // A generic 404 (for example, a missing route) remains an error.
+            let alreadyAbsent = false;
+            if (response.status === 404) {
+                const result = await response.json().catch(() => null);
+                alreadyAbsent = result?.status === 'not_found';
+            }
+            if (response.ok || alreadyAbsent) {
                 const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
                 const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
 
