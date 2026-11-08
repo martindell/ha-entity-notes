@@ -62,3 +62,17 @@ Override them only if your Home Assistant paths differ:
 ```sh
 REPO_DIR=/config/my-dev-copy TARGET_PARENT=/config/custom_components ./scripts/ha-deploy-dev.sh main
 ```
+
+## Automated Regression Checks
+
+From the repository root, run:
+
+```sh
+python -m unittest discover -s tests -v
+node tests/test_editor.cjs
+```
+
+These dependency-free tests exercise production storage functions and editor methods
+with small Home Assistant/DOM fakes. They do not replace testing in Home Assistant.
+Before release, check entity disable/re-enable, rename and delete; options changes;
+repeated unsaved edits; over-limit toolbar insertions; and backup/restore on a test instance.

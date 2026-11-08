@@ -30,8 +30,7 @@
             "name": "Advanced",
             "data": {
               "debug_logging": "Enable debug logging",
-              "max_note_length": "Maximum note length (50-2000 characters)",
-              "auto_backup": "Enable automatic backups"
+              "max_note_length": "Maximum note length (50-2000 characters)"
             }
           }
         }
@@ -65,8 +64,7 @@
             "name": "Advanced",
             "data": {
               "debug_logging": "Enable debug logging",
-              "max_note_length": "Maximum note length (50-2000 characters)",
-              "auto_backup": "Enable automatic backups"
+              "max_note_length": "Maximum note length (50-2000 characters)"
             }
           }
         }
@@ -112,8 +110,7 @@
             "name": "Advanced",
             "data": {
               "debug_logging": "Enable debug logging",
-              "max_note_length": "Maximum note length (50-2000 characters)",
-              "auto_backup": "Enable automatic backups"
+              "max_note_length": "Maximum note length (50-2000 characters)"
             }
           }
         }
