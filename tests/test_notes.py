@@ -34,7 +34,7 @@ ENV = {'HomeAssistant': object, 'deepcopy': deepcopy, 'time': time,
        'validate_note_payload': validation.validate_note_payload}
 exec((ROOT / 'const.py').read_text(), ENV)
 functions = [n for n in TREE.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-             and n.name not in ('async_setup', 'async_setup_entry', 'async_unload_entry')]
+             and n.name not in ('async_setup', 'async_setup_entry', 'async_unload_entry', '_async_unload_entry')]
 functions += [n for n in TREE.body if isinstance(n, ast.Assign)
               and any(isinstance(t, ast.Name) and t.id == 'NOTE_TARGETS' for t in n.targets)]
 exec(compile(ast.Module(body=functions, type_ignores=[]), str(ROOT / '__init__.py'), 'exec'), ENV)

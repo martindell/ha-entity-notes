@@ -340,7 +340,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             er.EVENT_ENTITY_REGISTRY_UPDATED, entity_registry_listener
         )
 
-        if enable_device_notes and delete_notes_with_device:
+        if delete_notes_with_device:
             async def device_removed_listener(event):
                 if event.data.get("action") == "remove":
                     await _delete_note(hass, "device", event.data.get("device_id"))
@@ -365,6 +365,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Drain accepted writes before unloading, rejecting new or queued writes."""
+    data = hass.data.get(DOMAIN)
+    if data is None:
+        return await _async_unload_entry(hass, entry)
+    data["unloading"] = True
+    try:
+        async with data["write_lock"]:
+            return await _async_unload_entry(hass, entry)
+    finally:
+        # A refused/failed unload must leave the active integration writable.
+        if hass.data.get(DOMAIN) is data:
+            data["unloading"] = False
+
+
+async def _async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Entity Notes integration")
 
@@ -438,8 +453,12 @@ def _note_text_and_updated(raw_note):
 
 async def _update_notes(hass: HomeAssistant, mutate):
     """Serialise writes and publish changes only after successful persistence."""
-    data = hass.data[DOMAIN]
+    data = hass.data.get(DOMAIN)
+    if data is None or data.get("unloading"):
+        raise HomeAssistantError("Entity Notes is reloading; please retry")
     async with data["write_lock"]:
+        if data.get("unloading") or hass.data.get(DOMAIN) is not data:
+            raise HomeAssistantError("Entity Notes is reloading; please retry")
         proposed = deepcopy({key: data[key] for key in ("entity_notes", "device_notes")})
         result = mutate(proposed)
         if proposed == {key: data[key] for key in ("entity_notes", "device_notes")}:

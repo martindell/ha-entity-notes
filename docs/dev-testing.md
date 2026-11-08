@@ -124,3 +124,15 @@ its `entity_notes` and `device_notes` attributes.
 
 Automated HA tests cover platform setup/unload/reload, legacy strings and current
 note records, mutations, failed writes, raw Jinja text and recorder exclusions.
+
+## Save And Setup Regression Checks
+
+Automated tests also delay a storage write across a reload, reject queued/new
+writes during teardown, preserve a renamed notes sensor on duplicate setup, and
+check device cleanup with the editor disabled. Frontend tests cover slow/failed
+initial loads, retry, disabled write actions and standard/legacy strikethrough.
+
+For a live frontend check, throttle the network while opening a note dialog:
+Save/Delete should stay disabled until the note arrives. Block the note GET
+request to check the Retry button, then unblock it and retry. Confirm the original
+note appears and can be edited. Check `~~strikethrough~~` and the toolbar too.

@@ -83,6 +83,8 @@ class EntityNotesCard extends HTMLElement {
         this.updatedAt = null;
         this.renderedNote = null;
         this.writePending = false;
+        this.noteLoaded = false;
+        this.loadPending = false;
         debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
@@ -409,8 +411,8 @@ class EntityNotesCard extends HTMLElement {
                     <div class="entity-notes-char-count">0/${maxLength}</div>
                 </div>
                 <div class="entity-notes-actions">
-                    <button class="entity-notes-button entity-notes-delete">${localize('delete')}</button>
-                    <button class="entity-notes-button entity-notes-save">${localize('save')}</button>
+                    <button class="entity-notes-button entity-notes-delete" disabled>${localize('delete')}</button>
+                    <button class="entity-notes-button entity-notes-save" disabled>${localize('save')}</button>
                 </div>
             </div>
         `;
@@ -449,6 +451,7 @@ class EntityNotesCard extends HTMLElement {
                 { re: /\*\*(.+?)\*\*/, render: (m) => `<strong>${escapeHtml(m[1])}</strong>` },
                 { re: /\*(.+?)\*/,     render: (m) => `<em>${escapeHtml(m[1])}</em>` },
                 { re: /`(.+?)`/,       render: (m) => `<code>${escapeHtml(m[1])}</code>` }, // Inline code
+                { re: /~~(.+?)~~/,     render: (m) => `<del>${escapeHtml(m[1])}</del>` },
                 { re: /~(.+?)~/,       render: (m) => `<del>${escapeHtml(m[1])}</del>` }, // Strikethrough
                 { re: /https?:\/\/[^\s]+/, render: (m) => renderSafeLink(m[0], m[0]) },
             ];
@@ -800,7 +803,7 @@ class EntityNotesCard extends HTMLElement {
                 break;
             }
             case 'strikethrough': {
-                const marker = '~';
+                const marker = '~~';
                 const replacement = marker + selectedText + marker;
                 textarea.setRangeText(replacement, start, end, 'select');
                 if (start === end) {
@@ -899,6 +902,10 @@ class EntityNotesCard extends HTMLElement {
         });
 
         viewDiv.addEventListener('click', (event) => {
+            if (!this.noteLoaded) {
+                this.loadNote();
+                return;
+            }
             // Don't switch to edit mode if clicking on a link or inside a link
             // Check if the clicked element or any parent is a link
             let element = event.target;
@@ -1092,6 +1099,7 @@ class EntityNotesCard extends HTMLElement {
     }
 
     switchToEditMode() {
+        if (!this.noteLoaded) return;
         this.isEditing = true;
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
@@ -1153,12 +1161,20 @@ class EntityNotesCard extends HTMLElement {
     }
 
     async loadNote() {
+        if (this.loadPending || this.writePending) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
         const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
 
         debugLog(`Entity Notes: Loading note for ${type} ${itemId}`);
         if (!itemId) return;
+        this.loadPending = true;
+        this.noteLoaded = false;
+        this.setWritePending(false);
+        const loadingView = this.shadowRoot.querySelector('.entity-notes-view');
+        loadingView.textContent = localize('loading_note');
+        loadingView.classList.remove('hidden');
+        this.shadowRoot.querySelector('.entity-notes-textarea').classList.add('hidden');
 
         try {
             const userName = encodeURIComponent(this.currentUserName);
@@ -1181,6 +1197,7 @@ class EntityNotesCard extends HTMLElement {
             // Track if there's an existing note
             this.hasExistingNote = noteText.length > 0;
 
+            this.noteLoaded = true;
             this.initialState = noteText;
             this.redoState = null;
 
@@ -1213,8 +1230,11 @@ class EntityNotesCard extends HTMLElement {
         } catch (error) {
             console.error(`Entity Notes: Error loading note for ${type}:`, error);
             const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
-            viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">${localize('error_loading_note')}</em>`;
+            viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">${localize('error_loading_note')}</em> <button class="entity-notes-button">${localize('retry_loading_note')}</button>`;
             viewDiv.classList.remove('hidden');
+        } finally {
+            this.loadPending = false;
+            this.setWritePending(false);
         }
     }
 
@@ -1222,12 +1242,12 @@ class EntityNotesCard extends HTMLElement {
         this.writePending = pending;
         for (const selector of ['.entity-notes-save', '.entity-notes-delete']) {
             const button = this.shadowRoot.querySelector(selector);
-            if (button) button.disabled = pending;
+            if (button) button.disabled = pending || !this.noteLoaded;
         }
     }
 
     async saveNote() {
-        if (this.writePending) return;
+        if (this.writePending || !this.noteLoaded) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
         const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
@@ -1282,7 +1302,7 @@ class EntityNotesCard extends HTMLElement {
     }
 
     async deleteNote() {
-        if (this.writePending) return;
+        if (this.writePending || !this.noteLoaded) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
         const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
