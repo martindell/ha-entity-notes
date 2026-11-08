@@ -15,7 +15,27 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+      - run: python -m pip install voluptuous==0.15.2
       - run: python -m unittest discover -s tests -v
       - run: node tests/test_editor.cjs
       - run: python -m compileall -q custom_components
       - run: sh -n scripts/ha-deploy-dev.sh
+  ha-compatibility:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ha: '2024.12.0'
+            python: '3.12'
+          - ha: '2025.12.0'
+            python: '3.13'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -c tests/ha/constraints.txt 'homeassistant==${{ matrix.ha }}'
+      - run: python -m unittest discover -s tests/ha -v

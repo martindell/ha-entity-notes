@@ -5,6 +5,7 @@ import logging
 import voluptuous as vol
 import time
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.components.http import HomeAssistantView
@@ -16,6 +17,7 @@ import os
 from pathlib import Path
 
 from .storage_utils import atomic_write_json, validate_notes
+from .validation import validate_target, validate_note_payload
 
 from .const import (
     DOMAIN,
@@ -106,9 +108,10 @@ class EntityNotesStore(Store):
         if self._note_write_error is not None:
             raise self._note_write_error
 
-    async def _async_write_data(self, data):
+    async def _async_write_data(self, *args, **kwargs):
+        # HA 2024.12 passes (path, data); newer versions pass only (data).
         try:
-            await super()._async_write_data(data)
+            await super()._async_write_data(*args, **kwargs)
         except Exception as error:
             self._note_write_error = error
             raise
@@ -455,7 +458,9 @@ async def _set_note(hass: HomeAssistant, note_type, item_id, note, log_changes=T
     """Set or remove a note and return its saved state."""
     target = _note_target(note_type)
     max_length = hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]
-    note = str(note or "")
+    validate_target(note_type, item_id)
+    if not isinstance(note, str):
+        raise ValueError("note must be a string")
 
     if len(note) > max_length:
         raise ValueError(f"Note exceeds the maximum length of {max_length} characters")
@@ -480,6 +485,7 @@ async def _set_note(hass: HomeAssistant, note_type, item_id, note, log_changes=T
 async def _delete_note(hass: HomeAssistant, note_type, item_id, log_changes=True):
     """Delete a note if it exists."""
     target = _note_target(note_type)
+    validate_target(note_type, item_id)
     def mutate(notes):
         values = notes[target["store_key"]]
         if item_id not in values:
@@ -501,18 +507,21 @@ async def async_register_services(hass: HomeAssistant) -> None:
         """Set a note for an entity or device."""
         target = _note_target(note_type)
         item_id = call.data.get(target["id_field"])
-        if not item_id:
-            _LOGGER.error("No %s provided for %s service", target["id_field"], target["set_service"])
-            return
-
-        await _set_note(hass, note_type, item_id, call.data.get("note", ""))
+        try:
+            validate_target(note_type, item_id)
+            note = validate_note_payload(call.data)
+            await _set_note(hass, note_type, item_id, note)
+        except ValueError as error:
+            raise ServiceValidationError(str(error)) from error
 
     async def handle_get_note_service(call, note_type):
         """Get a note for an entity or device."""
         target = _note_target(note_type)
         item_id = call.data.get(target["id_field"])
-        if not item_id:
-            return
+        try:
+            validate_target(note_type, item_id)
+        except ValueError as error:
+            raise ServiceValidationError(str(error)) from error
 
         raw_note = _notes_data(hass, note_type).get(item_id, "")
         note, _updated_at = _note_text_and_updated(raw_note)
@@ -525,8 +534,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
         """Delete a note for an entity or device."""
         target = _note_target(note_type)
         item_id = call.data.get(target["id_field"])
-        if not item_id:
-            return
+        try:
+            validate_target(note_type, item_id)
+        except ValueError as error:
+            raise ServiceValidationError(str(error)) from error
 
         await _delete_note(hass, note_type, item_id)
 
@@ -564,6 +575,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.info("Notes backed up to %s", backup_path)
         except Exception as e:
             _LOGGER.error("Failed to backup notes: %s", e)
+            raise HomeAssistantError(f"Failed to back up notes: {e}") from e
 
     async def restore_notes_service(call):
         """Restore notes from a backup file."""
@@ -591,6 +603,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.info("Notes restored from %s", backup_path)
         except Exception as e:
             _LOGGER.error("Failed to restore notes: %s", e)
+            raise HomeAssistantError(f"Failed to restore notes: {e}") from e
 
     async def set_device_note_service(call):
         """Set a note for a device."""
@@ -608,19 +621,26 @@ async def async_register_services(hass: HomeAssistant) -> None:
         """List all device notes."""
         await handle_list_notes_service(call, "device")
 
-    # Register entity services
-    hass.services.async_register(DOMAIN, SERVICE_SET_NOTE, set_note_service)
-    hass.services.async_register(DOMAIN, SERVICE_GET_NOTE, get_note_service)
-    hass.services.async_register(DOMAIN, SERVICE_DELETE_NOTE, delete_note_service)
-    hass.services.async_register(DOMAIN, SERVICE_LIST_NOTES, list_notes_service)
-    hass.services.async_register(DOMAIN, SERVICE_BACKUP_NOTES, backup_notes_service)
-    hass.services.async_register(DOMAIN, SERVICE_RESTORE_NOTES, restore_notes_service)
-
-    # Register device services
-    hass.services.async_register(DOMAIN, SERVICE_SET_DEVICE_NOTE, set_device_note_service)
-    hass.services.async_register(DOMAIN, SERVICE_GET_DEVICE_NOTE, get_device_note_service)
-    hass.services.async_register(DOMAIN, SERVICE_DELETE_DEVICE_NOTE, delete_device_note_service)
-    hass.services.async_register(DOMAIN, SERVICE_LIST_DEVICE_NOTES, list_device_notes_service)
+    # Runtime schemas enforce required fields for UI, scripts and API callers.
+    for note_type, handlers in (
+        ("entity", (set_note_service, get_note_service, delete_note_service, list_notes_service)),
+        ("device", (set_device_note_service, get_device_note_service, delete_device_note_service, list_device_notes_service)),
+    ):
+        target = _note_target(note_type)
+        def target_validator(value, kind=note_type):
+            validate_target(kind, value)
+            return value
+        target_schema = {vol.Required(target["id_field"]): target_validator}
+        suffix = "_device_note" if note_type == "device" else "_note"
+        for action, handler in zip(("set", "get", "delete"), handlers[:3]):
+            fields = dict(target_schema)
+            if action == "set":
+                fields[vol.Required("note")] = str
+            hass.services.async_register(DOMAIN, action + suffix, handler, schema=vol.Schema(fields))
+        list_service = SERVICE_LIST_DEVICE_NOTES if note_type == "device" else SERVICE_LIST_NOTES
+        hass.services.async_register(DOMAIN, list_service, handlers[3], schema=vol.Schema({}))
+    hass.services.async_register(DOMAIN, SERVICE_BACKUP_NOTES, backup_notes_service, schema=vol.Schema({}))
+    hass.services.async_register(DOMAIN, SERVICE_RESTORE_NOTES, restore_notes_service, schema=vol.Schema({}))
 
 
 class NotesView(HomeAssistantView):
@@ -632,6 +652,10 @@ class NotesView(HomeAssistantView):
     async def _get(self, request, item_id):
         """Get a note."""
         hass = request.app["hass"]
+        try:
+            validate_target(self.note_type, item_id)
+        except ValueError as error:
+            return web.json_response({"error": str(error)}, status=400)
         raw_note = _notes_data(hass, self.note_type).get(item_id, "")
         note_text, updated_at = _note_text_and_updated(raw_note)
 
@@ -660,11 +684,12 @@ class NotesView(HomeAssistantView):
 
         try:
             data = await request.json()
+            note_input = validate_note_payload(data)
             note, updated_at = await _set_note(
                 hass,
                 self.note_type,
                 item_id,
-                data.get("note", ""),
+                note_input,
                 log_changes=False,
             )
             user_name = data.get("user_name") or (
@@ -694,6 +719,8 @@ class NotesView(HomeAssistantView):
                 return web.json_response({"status": "deleted"})
             return web.json_response({"status": "not_found"}, status=404)
 
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
         except Exception as e:
             _LOGGER.error("Error deleting note for %s: %s", _note_log_target(self.note_type, item_id), e)
             return web.json_response({"error": str(e)}, status=500)
@@ -751,9 +778,15 @@ class EntityNotesRenderView(HomeAssistantView):
         hass = request.app["hass"]
         try:
             data = await request.json()
-            note = data.get("note", "")
+            note = validate_note_payload(data)
+            if len(note) > hass.data[DOMAIN]["config"][CONF_MAX_NOTE_LENGTH]:
+                raise ValueError("Preview exceeds the maximum note length")
             entity_id = data.get("entity_id")
             device_id = data.get("device_id")
+            if "entity_id" in data:
+                validate_target("entity", entity_id)
+            if "device_id" in data:
+                validate_target("device", device_id)
 
             rendered_note = note
             if note:
@@ -773,9 +806,11 @@ class EntityNotesRenderView(HomeAssistantView):
 
             return web.json_response({"rendered_note": rendered_note})
 
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
         except Exception as e:
             _LOGGER.error("Error rendering live preview: %s", e)
-            return web.json_response({"rendered_note": data.get("note", "") if "data" in locals() else ""}, status=500)
+            return web.json_response({"error": "Failed to render preview"}, status=500)
 
 
 class EntityNotesJSView(HomeAssistantView):

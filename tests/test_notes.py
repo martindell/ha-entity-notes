@@ -1,4 +1,4 @@
-"""Dependency-free regression tests for storage and HA-facing callbacks.
+"""Lightweight regression tests for storage and HA-facing callbacks.
 
 HA infrastructure is represented by small fakes; production functions are loaded
 from their AST so these tests do not require a full Home Assistant installation.
@@ -14,16 +14,23 @@ import tempfile
 import time
 from types import SimpleNamespace as NS
 import unittest
+import voluptuous as vol
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1] / 'custom_components/entity_notes'
 spec = importlib.util.spec_from_file_location('storage_utils', ROOT / 'storage_utils.py')
 storage = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(storage)
+validation_spec = importlib.util.spec_from_file_location('validation', ROOT / 'validation.py')
+validation = importlib.util.module_from_spec(validation_spec)
+validation_spec.loader.exec_module(validation)
 TREE = ast.parse((ROOT / '__init__.py').read_text())
 ENV = {'HomeAssistant': object, 'deepcopy': deepcopy, 'time': time,
        '_LOGGER': logging.getLogger('tests'), 'validate_notes': storage.validate_notes,
-       'atomic_write_json': storage.atomic_write_json, 'json': json}
+       'atomic_write_json': storage.atomic_write_json, 'json': json, 'vol': vol,
+       'HomeAssistantError': RuntimeError, 'ServiceValidationError': ValueError,
+       'validate_target': validation.validate_target,
+       'validate_note_payload': validation.validate_note_payload}
 exec((ROOT / 'const.py').read_text(), ENV)
 functions = [n for n in TREE.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
              and n.name not in ('async_setup', 'async_setup_entry', 'async_unload_entry')]
@@ -101,12 +108,13 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
             path.write_text(json.dumps({'entity_notes': {'sensor.test': 'replacement'}, 'device_notes': {'bad': 42}}))
             services = {}
             self.hass.config = NS(path=lambda name: str(Path(directory) / name))
-            self.hass.services = NS(async_register=lambda domain, name, handler: services.update({name: handler}))
+            self.hass.services = NS(async_register=lambda domain, name, handler, **kwargs: services.update({name: handler}))
             async def executor(fn, *args):
                 return fn(*args)
             self.hass.async_add_executor_job = executor
             await ENV['async_register_services'](self.hass)
-            await services['restore_notes'](NS(data={}))
+            with self.assertRaisesRegex(RuntimeError, 'Failed to restore'):
+                await services['restore_notes'](NS(data={}))
             self.assertEqual(self.data['entity_notes'], {'sensor.test': 'original'})
             self.assertIsNone(self.store.saved)
 
