@@ -72,6 +72,22 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_DEBUG_PREVIOUS_LEVEL = None
+
+
+def _configure_debug_logging(enabled):
+    """Restore the previous logger level when this integration stops debugging."""
+    global _DEBUG_PREVIOUS_LEVEL
+    if enabled:
+        if _DEBUG_PREVIOUS_LEVEL is None:
+            _DEBUG_PREVIOUS_LEVEL = _LOGGER.level
+        _LOGGER.setLevel(logging.DEBUG)
+    elif _DEBUG_PREVIOUS_LEVEL is not None:
+        # Respect a newer external logger configuration if it changed the level.
+        if _LOGGER.level == logging.DEBUG:
+            _LOGGER.setLevel(_DEBUG_PREVIOUS_LEVEL)
+        _DEBUG_PREVIOUS_LEVEL = None
+
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
@@ -150,8 +166,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     empty_note_placeholder = options.get(CONF_EMPTY_NOTE_PLACEHOLDER, DEFAULT_EMPTY_NOTE_PLACEHOLDER)
     hide_last_modified = options.get(CONF_HIDE_LAST_MODIFIED, DEFAULT_HIDE_LAST_MODIFIED)
 
+    _configure_debug_logging(debug_logging)
     if debug_logging:
-        _LOGGER.setLevel(logging.DEBUG)
         _LOGGER.debug("Debug logging enabled for Entity Notes")
 
     try:
@@ -347,6 +363,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Entity Notes integration")
+    _configure_debug_logging(False)
 
     try:
         # Remove event listeners if they exist

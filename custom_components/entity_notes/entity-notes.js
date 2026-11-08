@@ -951,7 +951,7 @@ class EntityNotesCard extends HTMLElement {
         }
         
         // If unchanged from initial state, use the already resolved Jinja2 template
-        if (text === (this.initialState ? this.initialState.trim() : '') && this.renderedNote) {
+        if (text === (this.initialState ? this.initialState.trim() : '') && this.renderedNote !== null) {
             previewDiv.innerHTML = this.renderMarkdown(this.renderedNote);
             return;
         }
@@ -986,7 +986,7 @@ class EntityNotesCard extends HTMLElement {
                         const result = await response.json();
                         // Double-check the user hasn't typed more while we were waiting
                         if (textarea.value.trim() === text) {
-                            previewDiv.innerHTML = this.renderMarkdown(result.rendered_note || text);
+                            previewDiv.innerHTML = this.renderMarkdown(result.rendered_note ?? text);
                         }
                     }
                 } catch (error) {
@@ -1131,7 +1131,7 @@ class EntityNotesCard extends HTMLElement {
             this.isEditing = false;
 
             // Convert links to clickable format, use rendered Jinja2 template if unchanged
-            const textToRender = (noteText === (this.initialState ? this.initialState.trim() : '') && this.renderedNote) ? this.renderedNote : noteText;
+            const textToRender = (noteText === (this.initialState ? this.initialState.trim() : '') && this.renderedNote !== null) ? this.renderedNote : noteText;
             viewDiv.innerHTML = this.renderMarkdown(textToRender);
 
             viewDiv.classList.remove('hidden');
@@ -1172,7 +1172,7 @@ class EntityNotesCard extends HTMLElement {
             const markdownToolbar = this.shadowRoot.querySelector('.entity-notes-markdown-toolbar');
             const noteText = data.note || '';
             textarea.value = noteText;
-            this.renderedNote = data.rendered_note || noteText;
+            this.renderedNote = data.rendered_note ?? noteText;
 
             this.updatedAt = data.updated_at || null;
             this.updateTimestampDisplay();
@@ -1237,7 +1237,7 @@ class EntityNotesCard extends HTMLElement {
 
             if (response.ok) {
                 const result = await response.json();
-                this.updatedAt = result.updated_at || Math.floor(Date.now() / 1000);
+                this.updatedAt = result.updated_at ?? null;
                 this.renderedNote = result.rendered_note ?? result.note ?? note;
                 const savedNote = result.note ?? note;
                 if (textarea.value.trim() === note) textarea.value = savedNote;

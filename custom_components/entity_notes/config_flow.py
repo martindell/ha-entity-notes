@@ -18,6 +18,8 @@ from .const import (
     CONF_HIDE_BUTTONS_UNTIL_FOCUS,
     CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS,
     CONF_DELETE_NOTES_WITH_ENTITY,
+    CONF_DELETE_NOTES_WITH_DEVICE,
+    CONF_ENABLE_DEVICE_NOTES,
     CONF_HIDE_MARKDOWN_TOOLBAR,
     CONF_SHOW_MARKDOWN_TOOLBAR,
     CONF_HIDE_MARKDOWN_PLACEHOLDER,
@@ -32,6 +34,8 @@ from .const import (
     DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS,
     DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS,
     DEFAULT_DELETE_NOTES_WITH_ENTITY,
+    DEFAULT_DELETE_NOTES_WITH_DEVICE,
+    DEFAULT_ENABLE_DEVICE_NOTES,
     DEFAULT_HIDE_MARKDOWN_TOOLBAR,
     DEFAULT_SHOW_MARKDOWN_TOOLBAR,
     DEFAULT_HIDE_MARKDOWN_PLACEHOLDER,
@@ -64,8 +68,10 @@ SECTION_CONFIG = [
         (CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS, DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS, bool),
         (CONF_CONFIRM_DELETE, DEFAULT_CONFIRM_DELETE, bool),
         (CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY, bool),
+        (CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE, bool),
     ]),
     (SECTION_ADVANCED, [
+        (CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES, bool),
         (CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING, bool),
         (CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH, vol.All(int, vol.Range(min=50, max=2000))),
     ]),
@@ -113,12 +119,17 @@ def validate_options(user_input: dict[str, Any]) -> dict[str, str]:
     return errors
 
 
-def normalize_options(user_input: dict[str, Any]) -> dict[str, Any]:
+def normalize_options(
+    user_input: dict[str, Any], current_options: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Flatten nested section structure into a flat options dict with defaults filled in."""
+    current_options = current_options or {}
     flat: dict[str, Any] = {}
     for section_key, opts in SECTION_CONFIG:
         section_data = user_input.get(section_key, user_input)
         for key, default, _ in opts:
+            if key in (CONF_ENABLE_DEVICE_NOTES, CONF_DELETE_NOTES_WITH_DEVICE):
+                default = current_options.get(key, default)
             flat[key] = section_data.get(key, default)
     return flat
 
@@ -136,6 +147,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Check if already configured and handle automatic upgrade
         existing_entries = self._async_current_entries()
+        current_options = existing_entries[0].options if existing_entries else {}
         if existing_entries and user_input is None:
             # Get current options from existing entry to pre-populate form
             current_options = existing_entries[0].options if existing_entries[0].options else {}
@@ -185,7 +197,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 entry_result = self.async_create_entry(
                     title="Entity Notes",
                     data={},
-                    options=normalize_options(user_input),
+                    options=normalize_options(user_input, current_options),
                 )
 
                 if existing_entries:
@@ -221,7 +233,7 @@ class EntityNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not errors:
                 self.hass.config_entries.async_update_entry(
-                    entry, data={}, options=normalize_options(user_input)
+                    entry, data={}, options=normalize_options(user_input, entry.options)
                 )
                 return self.async_abort(reason="reconfigure_successful")
 
@@ -260,7 +272,7 @@ class EntityNotesOptionsFlow(config_entries.OptionsFlow):
                 # Create the options entry first
                 result = self.async_create_entry(
                     title="",
-                    data=normalize_options(user_input)
+                    data=normalize_options(user_input, self.config_entry.options)
                 )
 
                 # The entry update listener reloads after HA commits these options.
