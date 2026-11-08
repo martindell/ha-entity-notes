@@ -1,0 +1,3 @@
+# HA 2025.12 pins aiodns 3.5, whose result types require the pycares 4.x API.
+# Bound this historical test dependency instead of resolving today's incompatible 5.x.
+pycares==4.11.0

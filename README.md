@@ -194,6 +194,11 @@ The REST API is used by the frontend and requires Home Assistant authentication.
 
 Overlong notes are rejected with HTTP 400; existing notes are preserved. Successful saves return the stored `note`, `rendered_note` and `updated_at`.
 
+`POST` requests require a JSON object with an explicit string `note`. Missing,
+null or non-string notes are rejected with HTTP 400 without changing saved notes.
+An explicitly empty string still clears the note. Services also validate required
+IDs and note types.
+
 `POST` requests expect JSON:
 
 ```json
@@ -218,6 +223,11 @@ Notes are included in normal Home Assistant backups; no integration-specific tog
 | --- | --- |
 | `entity_notes.backup_notes` | `<config_directory>/entity_notes_backup.json` |
 | `entity_notes.restore_notes` | `<config_directory>/entity_notes_backup.json` |
+
+Backup and restore failures raise Home Assistant action errors, so scripts and
+Developer Tools can distinguish failure from success. Restore merges valid backup
+notes into the current collection, replacing matching IDs; it does not delete
+notes absent from the backup.
 
 ## Development Testing
 
