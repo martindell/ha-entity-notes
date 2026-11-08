@@ -17,4 +17,39 @@ c=card();c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:"{{ '' }}"
 c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value="{{ '' }}";c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:"{{ '' }}",rendered_note:'',updated_at:123})});await c.saveNote();assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'');console.log('PASS: saved empty template does not show source');
 c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value="{{ '' }}";let previewCallback;ctx.setTimeout=fn=>{previewCallback=fn;return 1;};c.authenticatedFetch=async()=>({ok:true,json:async()=>({rendered_note:''})});c.updateLivePreview();await previewCallback();assert.equal(c.shadowRoot.querySelector('.entity-notes-live-preview').innerHTML,'');ctx.setTimeout=()=>0;console.log('PASS: live preview accepts empty server rendering');
 c=card();c.updatedAt=123;c.hasExistingNote=true;c.initialState='old';c.shadowRoot.querySelector('.entity-notes-textarea').value='';c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:'',updated_at:null})});await c.saveNote();assert.equal(c.updatedAt,null);assert.equal(c.initialState,'');assert.equal(c.hasExistingNote,false);console.log('PASS: clearing through Save removes timestamp');
+
+// Keep promises pending to reproduce slow responses deterministically.
+for (const firstAction of ['saveNote', 'deleteNote']) {
+    c=card();ctx.window.entityNotes.confirmDelete=false;
+    const textarea=c.shadowRoot.querySelector('.entity-notes-textarea');
+    textarea.value='original';c.initialState='original';c.isEditing=true;
+    let finish,calls=0;c.authenticatedFetch=()=>{calls++;return new Promise(resolve=>finish=resolve);};
+    const pending=c[firstAction]();
+    assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,true);
+    assert.equal(c.shadowRoot.querySelector('.entity-notes-delete').disabled,true);
+    textarea.value='new draft';
+    await c.saveNote();await c.deleteNote();assert.equal(calls,1);
+    finish({ok:true,json:async()=>({note:'original',rendered_note:'original',updated_at:123})});
+    await pending;
+    assert.equal(textarea.value,'new draft');assert.equal(c.isEditing,true);
+    assert.equal(c.writePending,false);
+    assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,false);
+    assert.equal(c.shadowRoot.querySelector('.entity-notes-delete').disabled,false);
+    c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'new draft',rendered_note:'new draft',updated_at:124})});
+    await c.saveNote();assert.equal(c.initialState,'new draft');
+    console.log('PASS: pending '+firstAction+' blocks overlapping writes and preserves newer draft');
+}
+for (const action of ['saveNote','deleteNote']) {
+    for (const networkFailure of [false,true]) {
+        c=card();ctx.window.entityNotes.confirmDelete=false;c.initialState='saved';
+        c.shadowRoot.querySelector('.entity-notes-textarea').value='draft';
+        c.authenticatedFetch=async()=>{if(networkFailure)throw Error('offline');return {ok:false,status:500,json:async()=>({error:'disk full'})};};
+        await c[action]();assert.equal(c.writePending,false);
+        assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,false);
+        assert.equal(c.shadowRoot.querySelector('.entity-notes-delete').disabled,false);
+        assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'draft');
+        assert.equal(c.initialState,'saved');
+    }
+    console.log('PASS: '+action+' failures unlock controls and preserve draft');
+}
 })().catch(e=>{console.error(e);process.exitCode=1});
