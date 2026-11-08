@@ -109,6 +109,54 @@ The following template variables are available when relevant:
 | `device_id` | The current device ID |
 | `user` | The current Home Assistant user name |
 
+## Notes In Dashboard Cards
+
+The integration creates `sensor.entity_notes`. Its state is the total number of
+saved entity and device notes. Two attributes expose the saved text:
+
+| Attribute | Contents |
+| --- | --- |
+| `entity_notes` | Entity ID → note text |
+| `device_notes` | Device ID → note text |
+
+These mappings update automatically after saves, deletions, entity renames and
+backup restores. Existing notes are available after startup. Note contents are
+excluded from recorder history; the original notes storage and backups remain
+unchanged. The attributes are readable like other Home Assistant entity states.
+
+For example, add a **Markdown** card and replace `sensor.example_battery` with
+your battery entity ID:
+
+```yaml
+type: markdown
+content: |
+  ## {{ state_attr('sensor.example_battery', 'friendly_name') or 'Battery' }} — {{ states('sensor.example_battery') }}%
+
+  {{ (state_attr('sensor.entity_notes', 'entity_notes') or {}).get('sensor.example_battery', '') }}
+```
+
+To display the note for that entity's device instead:
+
+```yaml
+type: markdown
+content: |
+  {{ (state_attr('sensor.entity_notes', 'device_notes') or {}).get(device_id('sensor.example_battery'), '') }}
+```
+
+The same expression can be used in a custom card's secondary text field **if
+that card supports Home Assistant Jinja templates**.
+
+Missing notes display as empty text. If Home Assistant gives the notes sensor a
+different entity ID (or you rename it), replace `sensor.entity_notes` in the
+examples with its actual ID from **Developer Tools → States**.
+
+The attributes contain raw saved text, including Markdown. Jinja written in the
+card YAML works normally, but Jinja inside a retrieved note is not evaluated a
+second time. For example, a stored note containing `{{ states('sensor.foo') }}`
+displays that expression literally. This does not change template rendering in
+the integration's own note dialogs. Stored device notes remain accessible even
+when the device-note editor is disabled.
+
 ## Configuration
 
 Options are grouped into three sections in the integration settings.
