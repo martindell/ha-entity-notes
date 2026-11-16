@@ -264,6 +264,7 @@ Options are grouped into three sections in the integration settings.
 | Option | Default | Description |
 | --- | --- | --- |
 | Enable device notes | `true` | Show the notes editor in device settings |
+| Show the note on the device page | `true` | Display the device note directly on the device page, above the device information card; devices without a note show nothing (create notes via the pencil icon) |
 | Debug logging | `false` | Enable detailed logs for troubleshooting |
 | Maximum note length | `200` | Character limit for each note, from 50 to 2000 |
 

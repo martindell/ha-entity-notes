@@ -9,6 +9,7 @@ window.entityNotes = {
     hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
     hideCharCountUntilFocus: {{HIDE_CHAR_COUNT_UNTIL_FOCUS}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
+    showNoteOnDevicePage: {{SHOW_NOTE_ON_DEVICE_PAGE}},
     confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
     hideMarkdownPlaceholder: {{HIDE_MARKDOWN_PLACEHOLDER}},
@@ -85,6 +86,7 @@ class EntityNotesCard extends HTMLElement {
         this.writePending = false;
         this.noteLoaded = false;
         this.loadPending = false;
+        this.loadFailed = false;
         debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
@@ -152,11 +154,19 @@ class EntityNotesCard extends HTMLElement {
 
     connectedCallback() {
         debugLog('Entity Notes: EntityNotesCard connected');
-        this.render();
-        this.setupEventListeners();
+        // Reparenting the device page card (parking it while empty, restoring
+        // it above the info card) re-fires this callback. Re-rendering then
+        // would wipe the loaded note, so only render a card that has no
+        // content yet.
+        if (!this._entityNotesRendered) {
+            this.render();
+            this.setupEventListeners();
+        }
+        this.updateDevicePageVisibility();
     }
 
     render() {
+        this._entityNotesRendered = true;
         const maxLength = window.entityNotes.maxNoteLength;
         const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
             `<button class="entity-notes-md-button" data-action="toggle-preview" title="${localize('toolbar_toggle_preview')}" style="width: auto; padding: 0 8px;" disabled>${localize('preview')}</button>`;
@@ -171,6 +181,22 @@ class EntityNotesCard extends HTMLElement {
                     background: transparent;
                     display: flex;
                     flex-direction: column;
+                }
+                /* On the device page the note renders as a proper card, matching
+                   the surrounding HA cards (theme-aware for dark mode). */
+                :host([context="device-page"]) .entity-notes-container {
+                    margin: 0 0 8px 0;
+                    padding: 12px;
+                    background: var(--card-background-color, var(--primary-background-color, #fff));
+                    border-radius: var(--ha-card-border-radius, 12px);
+                    border: 1px solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
+                }
+                /* The read-only note view blends into the card (no box in a box);
+                   the edit textarea keeps its border so editing looks distinct. */
+                :host([context="device-page"]) .entity-notes-view {
+                    border: none;
+                    background: transparent;
+                    padding: 6px 0;
                 }
                 .entity-notes-view, .entity-notes-live-preview {
                     width: 100%;
@@ -1170,6 +1196,7 @@ class EntityNotesCard extends HTMLElement {
         if (!itemId) return;
         this.loadPending = true;
         this.noteLoaded = false;
+        this.loadFailed = false;
         this.setWritePending(false);
         const loadingView = this.shadowRoot.querySelector('.entity-notes-view');
         loadingView.textContent = localize('loading_note');
@@ -1229,13 +1256,45 @@ class EntityNotesCard extends HTMLElement {
 
         } catch (error) {
             console.error(`Entity Notes: Error loading note for ${type}:`, error);
+            this.loadFailed = true;
             const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
             viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">${localize('error_loading_note')}</em> <button class="entity-notes-button">${localize('retry_loading_note')}</button>`;
             viewDiv.classList.remove('hidden');
         } finally {
             this.loadPending = false;
             this.setWritePending(false);
+            this.updateDevicePageVisibility();
         }
+    }
+
+    updateDevicePageVisibility() {
+        const container = this.shadowRoot.querySelector('.entity-notes-container');
+        // On the device page, keep pages uncluttered: the card only shows once
+        // a note exists (or when a failed load offers Retry). Creating a note
+        // happens in the device settings (pencil) dialog; an empty or deleted
+        // note parks the card out of the way.
+        const hide = this.getAttribute('context') === 'device-page'
+            && !this.hasExistingNote
+            && !this.loadFailed;
+        // Hiding in place is not enough: as the column's first child the
+        // hidden host still trips HA's structural layout rules and pushes the
+        // cards below down. Park it at the end of the column while empty, and
+        // restore its position above the info card when there is something to
+        // show.
+        if (hide) {
+            const parent = this.parentNode;
+            if (parent && parent.lastElementChild !== this) parent.appendChild(this);
+            if (this.style) this.style.display = 'none';
+        } else {
+            if (this.style && this.style.display === 'none' && this._entityNotesPage) {
+                const anchor = findDevicePageAnchor(this._entityNotesPage);
+                if (anchor && anchor.parent) {
+                    anchor.parent.insertBefore(this, anchor.before);
+                }
+            }
+            if (this.style) this.style.display = '';
+        }
+        if (container) container.style.display = hide ? 'none' : '';
     }
 
     setWritePending(pending) {
@@ -1288,6 +1347,9 @@ class EntityNotesCard extends HTMLElement {
                 }
 
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
+                // Let any other card for the same item (e.g. the device page
+                // card behind the pencil dialog) refresh itself.
+                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId } }));
             } else {
                 console.error(`Entity Notes: Save failed for ${type} - HTTP ${response.status}`);
                 const error = await response.json().catch(() => ({}));
@@ -1298,6 +1360,7 @@ class EntityNotesCard extends HTMLElement {
             alert(localize('save_connection_error'));
         } finally {
             this.setWritePending(false);
+            this.updateDevicePageVisibility();
         }
     }
 
@@ -1361,6 +1424,8 @@ class EntityNotesCard extends HTMLElement {
                 this.updateUndoRedoButtons();
                 this.autoResize();
                 debugLog(`Entity Notes: Note deleted successfully for ${type}`);
+                // Let any other card for the same item refresh itself.
+                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId } }));
             } else {
                 console.error(`Entity Notes: Delete failed for ${type} - HTTP ${response.status}`);
                 alert(localize('delete_failed', { status: response.status }));
@@ -1370,6 +1435,7 @@ class EntityNotesCard extends HTMLElement {
             alert(localize('delete_connection_error'));
         } finally {
             this.setWritePending(false);
+            this.updateDevicePageVisibility();
         }
     }
 }
@@ -1626,6 +1692,169 @@ function injectNotesIntoDeviceDialog(dialog) {
     }, 100);
 }
 
+// ---------------------------------------------------------------------------
+// Device page injection
+//
+// The device page (ha-config-device-page) is nested inside other shadow roots
+// (ha-panel-config and below), so the shared dialog observer — which watches
+// home-assistant's own shadow root, where HA appends dialogs — cannot see it
+// mount. Instead we search the config panel's shadow tree when the route
+// changes (HA fires 'location-changed' on the window for every navigation),
+// with a light interval as a safety net for initial loads and missed events.
+// ---------------------------------------------------------------------------
+
+function devicePageDisplayEnabled() {
+    return !!(window.entityNotes.enableDeviceNotes && window.entityNotes.showNoteOnDevicePage);
+}
+
+function findDevicePage() {
+    if (!devicePageDisplayEnabled()) return null;
+
+    const ha = document.querySelector('home-assistant');
+    const main = ha?.shadowRoot?.querySelector('home-assistant-main');
+    const mainRoot = main?.shadowRoot || ha?.shadowRoot;
+    if (!mainRoot) return null;
+
+    // Search for the page element directly. The panel chain between the main
+    // layout and the device page has changed shape across HA releases (panel
+    // wrappers that render without their own shadow root, Web Awesome drawer
+    // wrappers), but a light-DOM query on the main layout's shadow root
+    // matches the page tag in every observed layout.
+    return mainRoot.querySelector('ha-config-device-page')
+        || ha?.shadowRoot?.querySelector('ha-config-device-page')
+        || null;
+}
+
+function findDevicePageAnchor(page) {
+    // The page may render into its own shadow root or directly into the light
+    // DOM (some HA panel/page elements do); query whichever holds the content.
+    const scope = page?.shadowRoot || page;
+    if (!scope) return null;
+
+    // Preferred: above the device info card, so the note sits at the top of
+    // the info column on both wide and narrow layouts.
+    const infoCard = scope.querySelector('ha-device-info-card');
+    if (infoCard?.parentElement) {
+        return { parent: infoCard.parentElement, before: infoCard };
+    }
+
+    // Fallbacks for HA versions with a different page layout.
+    const container = scope.querySelector('.column, .columns, .content');
+    if (container) {
+        return { parent: container, before: container.firstChild };
+    }
+
+    return null;
+}
+
+function injectNotesIntoDevicePage(page) {
+    if (!page) return;
+    if (!devicePageDisplayEnabled()) return;
+
+    // Give up quietly if the page layout is never recognised, so we stop
+    // retrying on every render. The pencil dialog still works as before.
+    if (page._entityNotesPageUnsupported) return;
+
+    // The page element is reused across devices; the flag is keyed to the
+    // device ID so navigating between devices re-injects instead of skipping.
+    // A page whose device ID is not assigned yet is retried instead: comparing
+    // undefined to undefined here would otherwise park the page forever.
+    const deviceId = page.deviceId;
+    if (deviceId && page._entityNotesPageInjectedFor === deviceId) {
+        // The flag only proves we injected once: HA re-renders can wipe the
+        // card out of the page. Restore it instead of skipping.
+        const scope = page.shadowRoot || page;
+        if (scope.querySelector('entity-notes-card')) return;
+        delete page._entityNotesPageInjectedFor;
+    }
+
+    const anchor = deviceId ? findDevicePageAnchor(page) : null;
+    if (!deviceId || !anchor) {
+        page._entityNotesPageAttempts = (page._entityNotesPageAttempts || 0) + 1;
+        if (page._entityNotesPageAttempts >= 10) {
+            debugLog('Entity Notes: Device page layout not recognised; stopping device page injection');
+            page._entityNotesPageUnsupported = true;
+        } else {
+            // The page element mounts before its content and device ID are
+            // ready; keep retrying so a quiet page cannot get stuck.
+            setTimeout(() => injectNotesIntoDevicePage(page), 250);
+        }
+        return;
+    }
+
+    // Remove any stale card from a previous device (page element is reused).
+    const scope = page.shadowRoot || page;
+    const existing = scope.querySelector('entity-notes-card');
+    if (existing) existing.remove();
+
+    const notesCard = document.createElement('entity-notes-card');
+    notesCard.setAttribute('device-id', deviceId);
+    notesCard.setAttribute('type', 'device');
+    // Scoped styling hook: on the device page the note renders as a proper
+    // card (see :host([context="device-page"]) in the card styles).
+    notesCard.setAttribute('context', 'device-page');
+    // The card needs the page element to find its way back above the info
+    // card after being parked (see updateDevicePageVisibility).
+    notesCard._entityNotesPage = page;
+    anchor.parent.insertBefore(notesCard, anchor.before);
+    page._entityNotesPageInjectedFor = deviceId;
+
+    debugLog('Entity Notes: Notes card injected onto device page for device: ' + deviceId);
+
+    setTimeout(() => {
+        notesCard.loadNote();
+    }, 100);
+}
+
+function watchDevicePage(page) {
+    if (!page) return;
+    if (page._entityNotesPageWatcher) {
+        // Already watching. Re-run the injection check so the periodic poll
+        // restores a card if an HA re-render removed it.
+        injectNotesIntoDevicePage(page);
+        return;
+    }
+    page._entityNotesPageWatcher = true;
+    debugLog('Entity Notes: Watching device page for injection');
+
+    let observedRoot = null;
+    const attach = () => {
+        // Observe the shadow root when the page has one; otherwise the page
+        // element itself (light-DOM rendering).
+        const target = page.shadowRoot || page;
+        if (target !== observedRoot) {
+            if (page._entityNotesPageObserver) page._entityNotesPageObserver.disconnect();
+            observedRoot = target;
+            const pageObserver = new MutationObserver(() => {
+                if (!devicePageDisplayEnabled()) return;
+                // Clear the stale flag when the page element has been reused
+                // for a different device, so the card re-injects with the new
+                // device ID.
+                if (page._entityNotesPageInjectedFor && page._entityNotesPageInjectedFor !== page.deviceId) {
+                    delete page._entityNotesPageInjectedFor;
+                }
+                injectNotesIntoDevicePage(page);
+            });
+            page._entityNotesPageObserver = pageObserver;
+            pageObserver.observe(target, { childList: true, subtree: true });
+        }
+        // Also retry injection here: the content may render after the first
+        // attempt, and a quiet page may not re-render on its own.
+        injectNotesIntoDevicePage(page);
+    };
+
+    // The shadow root and its content render asynchronously after the page
+    // element appears; retry until the anchor exists.
+    attach();
+    [100, 500, 1500].forEach(delay => setTimeout(attach, delay));
+}
+
+function checkDevicePage() {
+    if (!devicePageDisplayEnabled()) return;
+    const page = findDevicePage();
+    if (page) watchDevicePage(page);
+}
+
 function setupDialogObserver() {
     debugLog('Entity Notes: Setting up dialog observer');
 
@@ -1747,6 +1976,37 @@ function setupDialogObserver() {
             }, true);
             infoLog('Entity Notes: show-dialog listener registered for device notes');
         }
+
+        // Device pages are not dialogs, so HA never fires show-dialog for them.
+        // Every navigation fires 'location-changed' on the window; search for a
+        // mounted device page after short delays so its content can render.
+        window.addEventListener('location-changed', () => {
+            debugLog('Entity Notes: location-changed event detected; checking for device page');
+            [200, 600, 1500].forEach(delay => setTimeout(checkDevicePage, delay));
+        }, true);
+        infoLog('Entity Notes: location-changed listener registered for device notes');
+
+        // A note saved or deleted in one card (e.g. the pencil dialog) must
+        // appear on any other card for the same device without a page refresh.
+        window.addEventListener('entity-notes-changed', (event) => {
+            const detail = (event && event.detail) || {};
+            if (detail.type !== 'device' || !detail.id) return;
+            debugLog('Entity Notes: device note changed; refreshing the device page card');
+            const page = findDevicePage();
+            if (!page) return;
+            const scope = page.shadowRoot || page;
+            const card = scope.querySelector('entity-notes-card');
+            if (card && card.noteLoaded) {
+                card.loadNote();
+            } else {
+                injectNotesIntoDevicePage(page);
+            }
+        });
+
+        // Safety net for direct loads on a device URL and any missed navigation
+        // events (e.g. browser back/forward).
+        window.entityNotes.devicePageTimer = setInterval(checkDevicePage, 2000);
+
         window.entityNotes.listenersAdded = true;
     }
 
@@ -1794,6 +2054,11 @@ function setupDialogObserver() {
 function initialize() {
     debugLog('Entity Notes: Initializing...');
     setupDialogObserver();
+
+    // Device pages mount deep inside the config panel rather than under the
+    // home-assistant shadow root, so check for one that may already be open.
+    // Repeat calls are harmless: the watcher and injection flag deduplicate.
+    [200, 1000, 3000].forEach(delay => setTimeout(checkDevicePage, delay));
 
     // Try to inject into any existing dialogs in shadow DOM
     const homeAssistant = document.querySelector('home-assistant');

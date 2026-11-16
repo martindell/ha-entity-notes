@@ -2,11 +2,11 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 let source=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');
 new vm.Script(source);console.log('PASS: frontend parses after configuration substitution');
 source=source.slice(0,source.indexOf('// Register the custom element'))+'\nglobalThis.Card = EntityNotesCard;';
-const ctx={console,window:{location:{origin:'https://ha.local'}},document:{querySelector:()=>null},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{}};vm.createContext(ctx);vm.runInContext(source,ctx);
-function card(){const c=new ctx.Card();c.noteLoaded=true;const els={};c.shadowRoot.querySelector=s=>els[s]??=( {value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false}},focus(){}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
+const ctx={console,window:{location:{origin:'https://ha.local'},dispatchEvent(e){(this._events=this._events||[]).push(e);},addEventListener(){},removeEventListener(){}},CustomEvent:class{constructor(type,opts){this.type=type;this.detail=opts&&opts.detail;}},document:{querySelector:()=>null},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{}};vm.createContext(ctx);vm.runInContext(source,ctx);
+function card(){const c=new ctx.Card();c.noteLoaded=true;const els={};c.shadowRoot.querySelector=s=>els[s]??=({value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false},toggle(){}},focus(){},addEventListener(){},removeEventListener(){},appendChild(){},getBoundingClientRect(){return{top:0,height:0}},setAttribute(){},closest(){return null}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
 (async()=>{
 let c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='saved A';c.initialState='saved A';c.renderedNote='saved A';c.switchToEditMode();c.shadowRoot.querySelector('.entity-notes-textarea').value='unsaved B';c.switchToViewMode();c.switchToEditMode();c.switchToViewMode();assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'unsaved B');assert.equal(c.initialState,'saved A');console.log('PASS: repeated edit/blur preserves draft rendering and saved baseline');
-c=card();ctx.window.entityNotes.hideMarkdownPlaceholder=true;ctx.window.entityNotes.emptyNotePlaceholder='Use "notes" <here>';c.render();assert(!c.shadowRoot.innerHTML.includes('placeholder="Use'));assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').placeholder,'Use "notes" <here>');console.log('PASS: custom placeholder assigned as text');
+c=card();ctx.window.entityNotes.hideMarkdownPlaceholder=true;ctx.window.entityNotes.emptyNotePlaceholder='Use "notes" <here>';c.render();assert(!c.shadowRoot.innerHTML.includes('placeholder="Use'));assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').placeholder,'Use "notes" <here>');assert(c.shadowRoot.innerHTML.includes(':host([context="device-page"]) .entity-notes-container'));assert(c.shadowRoot.innerHTML.includes(':host([context="device-page"]) .entity-notes-view'));console.log('PASS: custom placeholder assigned as text');
 for(const x of ['<img src=x onerror=alert(1)>','[x](javascript:alert(1))']){const out=c.renderMarkdown(x);assert(!out.includes('<img'));assert(!out.includes('href="javascript:'));}console.log('PASS: note HTML and unsafe links escaped');
 c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='draft';c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'canonical',rendered_note:'canonical',updated_at:123})});await c.saveNote();assert.equal(c.initialState,'canonical');assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'canonical');console.log('PASS: save uses canonical server text');
 c=card();c.initialState='original';c.shadowRoot.querySelector('.entity-notes-textarea').value='oversized';let message;ctx.alert=s=>message=s;c.authenticatedFetch=async()=>({ok:false,status:400,json:async()=>({error:'Note exceeds maximum length'})});await c.saveNote();assert.equal(c.initialState,'original');assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').value,'oversized');assert.equal(message,'Note exceeds maximum length');console.log('PASS: rejected save preserves draft and displays validation message');
@@ -117,4 +117,206 @@ for (const action of ['saveNote','deleteNote']) {
     }
     console.log('PASS: '+action+' failures unlock controls and preserve draft');
 }
+
+// On the device page (context=device-page) the card hides unless a note exists.
+function pageCard(){const c=card();c.style={};c.parentNode={lastElementChild:null,appendChild(x){this.lastElementChild=x;}};c.setAttribute=()=>{};const getAttribute=c.getAttribute.bind(c);c.getAttribute=n=>n==='context'?'device-page':getAttribute(n);return c;}
+c=pageCard();c.render();c.updateDevicePageVisibility();
+assert.equal(c.parentNode.lastElementChild,c);
+assert.equal(c.style.display,'none');
+assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
+console.log('PASS: device page card starts parked before the note loads');
+c=pageCard();c.updateDevicePageVisibility();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'Hello',rendered_note:'Hello',updated_at:1})});
+await c.loadNote();
+assert.equal(c.style.display,'');
+console.log('PASS: device page card shows once a note exists');
+c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:''})});
+await c.loadNote();
+assert.equal(c.parentNode.lastElementChild,c);
+assert.equal(c.style.display,'none');
+assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
+console.log('PASS: device page card stays parked for devices without notes');
+c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>{throw Error('offline');};
+await c.loadNote();
+assert.equal(c.style.display,'');
+console.log('PASS: failed loads keep the retry visible on the device page');
+c=card();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:''})});
+await c.loadNote();
+assert.equal(c.style,undefined);
+console.log('PASS: entity and dialog cards are never hidden');
+c=pageCard();c.noteLoaded=true;c.hasExistingNote=true;c.renderedNote='Old';
+ctx.window.entityNotes.confirmDelete=false;
+c.authenticatedFetch=async()=>({ok:true});
+await c.deleteNote();
+assert.equal(c.hasExistingNote,false);
+assert.equal(c.parentNode.lastElementChild,c);
+assert.equal(c.style.display,'none');
+assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
+console.log('PASS: deleting the note parks the device page card again');
+// Reparenting re-fires connectedCallback; that must not re-render and wipe
+// the loaded note.
+c=pageCard();let renders=0;const origRender=c.render.bind(c);c.render=()=>{renders++;origRender();};c.connectedCallback();c.connectedCallback();
+assert.equal(renders,1);
+console.log('PASS: reparenting the device page card keeps the rendered note');
+// Saves and deletes broadcast a change event so other cards can refresh.
+c=card();ctx.window._events=[];c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'saved note',rendered_note:'saved note',updated_at:5})});c.shadowRoot.querySelector('.entity-notes-textarea').value='saved note';await c.saveNote();
+assert.equal(ctx.window._events.length,1);
+assert.equal(ctx.window._events[0].type,'entity-notes-changed');
+assert.equal(ctx.window._events[0].detail.id,'sensor.test');
+console.log('PASS: saving a note broadcasts a change event');
+c=card();ctx.window._events=[];ctx.window.entityNotes.confirmDelete=false;c.authenticatedFetch=async()=>({ok:true});
+await c.deleteNote();
+assert.equal(ctx.window._events.length,1);
+assert.equal(ctx.window._events[0].type,'entity-notes-changed');
+console.log('PASS: deleting a note broadcasts a change event');
+
+// --- Device page injection ---
+const dpSource=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');
+const dpSlice=dpSource.slice(0,dpSource.indexOf('function setupDialogObserver'))+'\nglobalThis.DevicePage={findDevicePage,findDevicePageAnchor,injectNotesIntoDevicePage,watchDevicePage};';
+const ctx2={console,window:{location:{origin:'https://ha.local'},entityNotes:{debug:false,maxNoteLength:200,enableDeviceNotes:true,showNoteOnDevicePage:true,translations:{}}},
+ document:{querySelector:selector=>selector==='home-assistant'?ctx2.ha:null,createElement:tag=>({tagName:tag.toUpperCase(),attributes:{},setAttribute(k,v){this.attributes[k]=v;},removed:false,remove(){this.removed=true;},loadNote(){}})},
+ customElements:{get:()=>null,define:()=>{}},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{},
+ MutationObserver:class{constructor(callback){this.callback=callback;this.observed=null;}observe(root){this.observed=root;}}};
+vm.createContext(ctx2);vm.runInContext(dpSlice,ctx2);
+const DP=ctx2.DevicePage;
+function fakeDevicePage(deviceId,withInfoCard=true){
+ const shadow={staleCard:null,columns:null,infoCard:withInfoCard?{parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}}:null,
+  querySelector(sel){
+   if(sel==='ha-device-info-card')return shadow.infoCard;
+   if(sel==='entity-notes-card')return shadow.staleCard;
+   if(sel==='.column, .columns, .content')return shadow.columns;
+   return null;}};
+ return {deviceId,shadowRoot:shadow};
+}
+// Injects above the device info card with the device id and device type.
+let page=fakeDevicePage('device1');ctx2.window.entityNotes.showNoteOnDevicePage=true;ctx2.window.entityNotes.enableDeviceNotes=true;
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['device-id'],'device1');
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['type'],'device');
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['context'],'device-page');
+assert.equal(page._entityNotesPageInjectedFor,'device1');
+console.log('PASS: device page injection inserts card above info card');
+// Same device id with the card still present: no duplicate card.
+page.shadowRoot.staleCard=page.shadowRoot.infoCard.parentElement.inserts[0].node;
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+console.log('PASS: device page injection is keyed to the device id');
+// Reused page element for another device: stale card removed, new id injected.
+const firstCard=page.shadowRoot.infoCard.parentElement.inserts[0].node;
+page.shadowRoot.staleCard=firstCard;page.deviceId='device2';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(firstCard.removed,true);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[1].node.attributes['device-id'],'device2');
+assert.equal(page._entityNotesPageInjectedFor,'device2');
+console.log('PASS: device switch replaces the stale card with the new device id');
+// Display toggles disable injection entirely.
+for (const disabled of ['showNoteOnDevicePage','enableDeviceNotes']) {
+ ctx2.window.entityNotes[disabled]=false;
+ page=fakeDevicePage('device1');
+ DP.injectNotesIntoDevicePage(page);
+ assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,0);
+ assert.equal(page._entityNotesPageInjectedFor,undefined);
+ ctx2.window.entityNotes[disabled]=true;
+}
+console.log('PASS: device page injection honours both display toggles');
+// Unrecognised layout gives up gracefully after repeated attempts.
+page=fakeDevicePage('device1',false);
+for(let i=0;i<12;i++)DP.injectNotesIntoDevicePage(page);
+assert.equal(page._entityNotesPageUnsupported,true);
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+page.deviceId='device3';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+console.log('PASS: unrecognised device page layout stops retrying without errors');
+// A page whose device ID is not assigned yet must not be parked as "done".
+page=fakeDevicePage(undefined);
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page._entityNotesPageAttempts,1);
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+page.deviceId='device6';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page._entityNotesPageInjectedFor,'device6');
+console.log('PASS: device page injection retries until the device id is ready');
+// A card wiped by an HA re-render is restored without duplicating.
+page=fakeDevicePage('device7');
+DP.injectNotesIntoDevicePage(page);
+page.shadowRoot.staleCard=null;
+page._entityNotesPageWatcher=true;
+DP.watchDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+page.shadowRoot.staleCard=page.shadowRoot.infoCard.parentElement.inserts[1].node;
+DP.watchDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+console.log('PASS: a wiped device page card is restored without duplicates');
+// Page lookup finds the element directly under the main layout shadow root.
+page=fakeDevicePage('device1');
+ctx2.ha={shadowRoot:{querySelector:selector=>selector==='home-assistant-main'?ctx2.main:null}};
+ctx2.main={shadowRoot:{querySelector:selector=>selector==='ha-config-device-page'?page:null}};
+assert.equal(DP.findDevicePage(),page);
+ctx2.window.entityNotes.showNoteOnDevicePage=false;
+assert.equal(DP.findDevicePage(),null);
+ctx2.window.entityNotes.showNoteOnDevicePage=true;
+// Older layouts without home-assistant-main fall back to the root shadow.
+ctx2.main=null;
+ctx2.ha.shadowRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+assert.equal(DP.findDevicePage(),page);
+ctx2.ha.shadowRoot.querySelector=()=>null;
+assert.equal(DP.findDevicePage(),null);
+console.log('PASS: device page lookup finds direct and nested page elements');
+// The per-page watcher re-injects when the device changes.
+page=fakeDevicePage('device1');
+let observerCallback;const realObserver=ctx2.MutationObserver;
+ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(){}};
+DP.watchDevicePage(page);
+ctx2.MutationObserver=realObserver;
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+page.deviceId='device4';
+observerCallback();
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[1].node.attributes['device-id'],'device4');
+console.log('PASS: device page watcher re-injects when the element is reused');
+// A page whose content renders late still gets the card from retry attempts.
+page=fakeDevicePage('device5',false);
+ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(){}};
+DP.watchDevicePage(page);
+ctx2.MutationObserver=realObserver;
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+page.shadowRoot.infoCard={parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}};
+observerCallback();
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['device-id'],'device5');
+console.log('PASS: device page card injects once content renders late');
+// Pages that render into the light DOM (no shadow root) are supported too.
+function fakeLightPage(deviceId,withInfoCard=true){
+ const p={deviceId,staleCard:null,
+  querySelector(sel){
+   if(sel==='ha-device-info-card')return p.infoCard;
+   if(sel==='entity-notes-card')return p.staleCard;
+   if(sel==='.column, .columns, .content')return null;
+   return null;},
+  infoCard:withInfoCard?{parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}}:null};
+ return p;
+}
+page=fakeLightPage('deviceL');
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.infoCard.parentElement.inserts.length,1);
+assert.equal(page.infoCard.parentElement.inserts[0].node.attributes['device-id'],'deviceL');
+page.deviceId='deviceM';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.infoCard.parentElement.inserts.length,2);
+assert.equal(page.infoCard.parentElement.inserts[1].node.attributes['device-id'],'deviceM');
+console.log('PASS: light-DOM device pages get the card and switch devices');
+// The watcher observes a light-DOM page element when no shadow root exists.
+page=fakeLightPage('deviceN');
+ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(root){this.rootObserved=root;}};
+DP.watchDevicePage(page);
+assert.equal(page.infoCard.parentElement.inserts.length,1);
+page.deviceId='deviceO';
+observerCallback();
+assert.equal(page.infoCard.parentElement.inserts.length,2);
+assert.equal(page.infoCard.parentElement.inserts[1].node.attributes['device-id'],'deviceO');
+ctx2.MutationObserver=realObserver;
+console.log('PASS: watcher observes light-DOM pages and follows device changes');
 })().catch(e=>{console.error(e);process.exitCode=1});
