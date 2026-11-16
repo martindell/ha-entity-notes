@@ -3,7 +3,7 @@ let source=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf
 new vm.Script(source);console.log('PASS: frontend parses after configuration substitution');
 source=source.slice(0,source.indexOf('// Register the custom element'))+'\nglobalThis.Card = EntityNotesCard;';
 const ctx={console,window:{location:{origin:'https://ha.local'}},document:{querySelector:()=>null},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{}};vm.createContext(ctx);vm.runInContext(source,ctx);
-function card(){const c=new ctx.Card();c.noteLoaded=true;const els={};c.shadowRoot.querySelector=s=>els[s]??=( {value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false}},focus(){}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
+function card(){const c=new ctx.Card();c.noteLoaded=true;const els={};c.shadowRoot.querySelector=s=>els[s]??=({value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false},toggle(){}},focus(){},addEventListener(){},removeEventListener(){},appendChild(){},getBoundingClientRect(){return{top:0,height:0}},setAttribute(){},closest(){return null}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
 (async()=>{
 let c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='saved A';c.initialState='saved A';c.renderedNote='saved A';c.switchToEditMode();c.shadowRoot.querySelector('.entity-notes-textarea').value='unsaved B';c.switchToViewMode();c.switchToEditMode();c.switchToViewMode();assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'unsaved B');assert.equal(c.initialState,'saved A');console.log('PASS: repeated edit/blur preserves draft rendering and saved baseline');
 c=card();ctx.window.entityNotes.hideMarkdownPlaceholder=true;ctx.window.entityNotes.emptyNotePlaceholder='Use "notes" <here>';c.render();assert(!c.shadowRoot.innerHTML.includes('placeholder="Use'));assert.equal(c.shadowRoot.querySelector('.entity-notes-textarea').placeholder,'Use "notes" <here>');assert(c.shadowRoot.innerHTML.includes(':host([context="device-page"]) .entity-notes-container'));assert(c.shadowRoot.innerHTML.includes(':host([context="device-page"]) .entity-notes-view'));console.log('PASS: custom placeholder assigned as text');
@@ -152,6 +152,11 @@ assert.equal(c.parentNode.lastElementChild,c);
 assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
 console.log('PASS: deleting the note parks the device page card again');
+// Reparenting re-fires connectedCallback; that must not re-render and wipe
+// the loaded note.
+c=pageCard();let renders=0;const origRender=c.render.bind(c);c.render=()=>{renders++;origRender();};c.connectedCallback();c.connectedCallback();
+assert.equal(renders,1);
+console.log('PASS: reparenting the device page card keeps the rendered note');
 
 // --- Device page injection ---
 const dpSource=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');

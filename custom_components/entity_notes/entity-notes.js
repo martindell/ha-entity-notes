@@ -154,12 +154,19 @@ class EntityNotesCard extends HTMLElement {
 
     connectedCallback() {
         debugLog('Entity Notes: EntityNotesCard connected');
-        this.render();
-        this.setupEventListeners();
+        // Reparenting the device page card (parking it while empty, restoring
+        // it above the info card) re-fires this callback. Re-rendering then
+        // would wipe the loaded note, so only render a card that has no
+        // content yet.
+        if (!this._entityNotesRendered) {
+            this.render();
+            this.setupEventListeners();
+        }
         this.updateDevicePageVisibility();
     }
 
     render() {
+        this._entityNotesRendered = true;
         const maxLength = window.entityNotes.maxNoteLength;
         const previewButtonHtml = window.entityNotes.hidePreviewButton ? '' :
             `<button class="entity-notes-md-button" data-action="toggle-preview" title="${localize('toolbar_toggle_preview')}" style="width: auto; padding: 0 8px;" disabled>${localize('preview')}</button>`;
