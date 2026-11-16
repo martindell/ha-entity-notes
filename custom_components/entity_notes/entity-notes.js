@@ -1262,7 +1262,6 @@ class EntityNotesCard extends HTMLElement {
 
     updateDevicePageVisibility() {
         const container = this.shadowRoot.querySelector('.entity-notes-container');
-        if (!container) return;
         // On the device page, keep pages uncluttered: the card only shows once
         // a note exists (or when a failed load offers Retry). Creating a note
         // happens in the device settings (pencil) dialog; an empty or deleted
@@ -1270,7 +1269,11 @@ class EntityNotesCard extends HTMLElement {
         const hide = this.getAttribute('context') === 'device-page'
             && !this.hasExistingNote
             && !this.loadFailed;
-        container.style.display = hide ? 'none' : '';
+        // Hide the host element too: page columns lay out with flex/grid gaps,
+        // so an empty custom element would still push the section below down
+        // by one gap.
+        if (this.style) this.style.display = hide ? 'none' : '';
+        if (container) container.style.display = hide ? 'none' : '';
     }
 
     setWritePending(pending) {

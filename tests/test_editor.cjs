@@ -119,31 +119,34 @@ for (const action of ['saveNote','deleteNote']) {
 }
 
 // On the device page (context=device-page) the card hides unless a note exists.
-function pageCard(){const c=card();c.setAttribute=()=>{};const getAttribute=c.getAttribute.bind(c);c.getAttribute=n=>n==='context'?'device-page':getAttribute(n);return c;}
+function pageCard(){const c=card();c.style={};c.setAttribute=()=>{};const getAttribute=c.getAttribute.bind(c);c.getAttribute=n=>n==='context'?'device-page':getAttribute(n);return c;}
 c=pageCard();c.render();c.updateDevicePageVisibility();
+assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
 console.log('PASS: device page card starts hidden before the note loads');
 c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'Hello',rendered_note:'Hello',updated_at:1})});
 await c.loadNote();
-assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'');
+assert.equal(c.style.display,'');
 console.log('PASS: device page card shows once a note exists');
 c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:''})});
 await c.loadNote();
+assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
 console.log('PASS: device page card stays hidden for devices without notes');
 c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>{throw Error('offline');};
 await c.loadNote();
-assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'');
+assert.equal(c.style.display,'');
 console.log('PASS: failed loads keep the retry visible on the device page');
 c=card();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:''})});
 await c.loadNote();
-assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'');
+assert.equal(c.style,undefined);
 console.log('PASS: entity and dialog cards are never hidden');
 c=pageCard();c.noteLoaded=true;c.hasExistingNote=true;c.renderedNote='Old';
 ctx.window.entityNotes.confirmDelete=false;
 c.authenticatedFetch=async()=>({ok:true});
 await c.deleteNote();
 assert.equal(c.hasExistingNote,false);
+assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
 console.log('PASS: deleting the note hides the device page card again');
 
