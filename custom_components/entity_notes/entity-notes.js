@@ -1725,23 +1725,27 @@ function injectNotesIntoDevicePage(page) {
     if (!page) return;
     if (!devicePageDisplayEnabled()) return;
 
-    const deviceId = page.deviceId;
-    if (!deviceId) return;
-
     // Give up quietly if the page layout is never recognised, so we stop
     // retrying on every render. The pencil dialog still works as before.
     if (page._entityNotesPageUnsupported) return;
 
     // The page element is reused across devices; the flag is keyed to the
     // device ID so navigating between devices re-injects instead of skipping.
-    if (page._entityNotesPageInjectedFor === deviceId) return;
+    // A page whose device ID is not assigned yet is retried instead: comparing
+    // undefined to undefined here would otherwise park the page forever.
+    const deviceId = page.deviceId;
+    if (deviceId && page._entityNotesPageInjectedFor === deviceId) return;
 
-    const anchor = findDevicePageAnchor(page);
-    if (!anchor) {
+    const anchor = deviceId ? findDevicePageAnchor(page) : null;
+    if (!deviceId || !anchor) {
         page._entityNotesPageAttempts = (page._entityNotesPageAttempts || 0) + 1;
         if (page._entityNotesPageAttempts >= 10) {
             debugLog('Entity Notes: Device page layout not recognised; stopping device page injection');
             page._entityNotesPageUnsupported = true;
+        } else {
+            // The page element mounts before its content and device ID are
+            // ready; keep retrying so a quiet page cannot get stuck.
+            setTimeout(() => injectNotesIntoDevicePage(page), 250);
         }
         return;
     }

@@ -209,6 +209,16 @@ page.deviceId='device3';
 DP.injectNotesIntoDevicePage(page);
 assert.equal(page._entityNotesPageInjectedFor,undefined);
 console.log('PASS: unrecognised device page layout stops retrying without errors');
+// A page whose device ID is not assigned yet must not be parked as "done".
+page=fakeDevicePage(undefined);
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page._entityNotesPageAttempts,1);
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+page.deviceId='device6';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page._entityNotesPageInjectedFor,'device6');
+console.log('PASS: device page injection retries until the device id is ready');
 // Page lookup finds the element directly under the main layout shadow root.
 page=fakeDevicePage('device1');
 ctx2.ha={shadowRoot:{querySelector:selector=>selector==='home-assistant-main'?ctx2.main:null}};
