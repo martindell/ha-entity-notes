@@ -173,6 +173,15 @@ class EntityNotesCard extends HTMLElement {
                     display: flex;
                     flex-direction: column;
                 }
+                /* On the device page the note renders as a proper card, matching
+                   the surrounding HA cards (theme-aware for dark mode). */
+                :host([context="device-page"]) .entity-notes-container {
+                    margin: 0 0 8px 0;
+                    padding: 12px;
+                    background: var(--card-background-color, var(--primary-background-color, #fff));
+                    border-radius: var(--ha-card-border-radius, 12px);
+                    border: 1px solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
+                }
                 .entity-notes-view, .entity-notes-live-preview {
                     width: 100%;
                     min-height: 36px;
@@ -1715,6 +1724,9 @@ function injectNotesIntoDevicePage(page) {
     const notesCard = document.createElement('entity-notes-card');
     notesCard.setAttribute('device-id', deviceId);
     notesCard.setAttribute('type', 'device');
+    // Scoped styling hook: on the device page the note renders as a proper
+    // card (see :host([context="device-page"]) in the card styles).
+    notesCard.setAttribute('context', 'device-page');
     anchor.parent.insertBefore(notesCard, anchor.before);
     page._entityNotesPageInjectedFor = deviceId;
 
