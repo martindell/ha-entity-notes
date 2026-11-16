@@ -119,20 +119,22 @@ for (const action of ['saveNote','deleteNote']) {
 }
 
 // On the device page (context=device-page) the card hides unless a note exists.
-function pageCard(){const c=card();c.style={};c.setAttribute=()=>{};const getAttribute=c.getAttribute.bind(c);c.getAttribute=n=>n==='context'?'device-page':getAttribute(n);return c;}
+function pageCard(){const c=card();c.style={};c.parentNode={lastElementChild:null,appendChild(x){this.lastElementChild=x;}};c.setAttribute=()=>{};const getAttribute=c.getAttribute.bind(c);c.getAttribute=n=>n==='context'?'device-page':getAttribute(n);return c;}
 c=pageCard();c.render();c.updateDevicePageVisibility();
+assert.equal(c.parentNode.lastElementChild,c);
 assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
-console.log('PASS: device page card starts hidden before the note loads');
-c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'Hello',rendered_note:'Hello',updated_at:1})});
+console.log('PASS: device page card starts parked before the note loads');
+c=pageCard();c.updateDevicePageVisibility();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'Hello',rendered_note:'Hello',updated_at:1})});
 await c.loadNote();
 assert.equal(c.style.display,'');
 console.log('PASS: device page card shows once a note exists');
 c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:''})});
 await c.loadNote();
+assert.equal(c.parentNode.lastElementChild,c);
 assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
-console.log('PASS: device page card stays hidden for devices without notes');
+console.log('PASS: device page card stays parked for devices without notes');
 c=pageCard();c.noteLoaded=false;c.authenticatedFetch=async()=>{throw Error('offline');};
 await c.loadNote();
 assert.equal(c.style.display,'');
@@ -146,9 +148,10 @@ ctx.window.entityNotes.confirmDelete=false;
 c.authenticatedFetch=async()=>({ok:true});
 await c.deleteNote();
 assert.equal(c.hasExistingNote,false);
+assert.equal(c.parentNode.lastElementChild,c);
 assert.equal(c.style.display,'none');
 assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'none');
-console.log('PASS: deleting the note hides the device page card again');
+console.log('PASS: deleting the note parks the device page card again');
 
 // --- Device page injection ---
 const dpSource=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');

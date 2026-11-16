@@ -1265,14 +1265,28 @@ class EntityNotesCard extends HTMLElement {
         // On the device page, keep pages uncluttered: the card only shows once
         // a note exists (or when a failed load offers Retry). Creating a note
         // happens in the device settings (pencil) dialog; an empty or deleted
-        // note hides the card again.
+        // note parks the card out of the way.
         const hide = this.getAttribute('context') === 'device-page'
             && !this.hasExistingNote
             && !this.loadFailed;
-        // Hide the host element too: page columns lay out with flex/grid gaps,
-        // so an empty custom element would still push the section below down
-        // by one gap.
-        if (this.style) this.style.display = hide ? 'none' : '';
+        // Hiding in place is not enough: as the column's first child the
+        // hidden host still trips HA's structural layout rules and pushes the
+        // cards below down. Park it at the end of the column while empty, and
+        // restore its position above the info card when there is something to
+        // show.
+        if (hide) {
+            const parent = this.parentNode;
+            if (parent && parent.lastElementChild !== this) parent.appendChild(this);
+            if (this.style) this.style.display = 'none';
+        } else {
+            if (this.style && this.style.display === 'none' && this._entityNotesPage) {
+                const anchor = findDevicePageAnchor(this._entityNotesPage);
+                if (anchor && anchor.parent) {
+                    anchor.parent.insertBefore(this, anchor.before);
+                }
+            }
+            if (this.style) this.style.display = '';
+        }
         if (container) container.style.display = hide ? 'none' : '';
     }
 
@@ -1767,6 +1781,9 @@ function injectNotesIntoDevicePage(page) {
     // Scoped styling hook: on the device page the note renders as a proper
     // card (see :host([context="device-page"]) in the card styles).
     notesCard.setAttribute('context', 'device-page');
+    // The card needs the page element to find its way back above the info
+    // card after being parked (see updateDevicePageVisibility).
+    notesCard._entityNotesPage = page;
     anchor.parent.insertBefore(notesCard, anchor.before);
     page._entityNotesPageInjectedFor = deviceId;
 
