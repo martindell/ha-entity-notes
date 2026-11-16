@@ -1647,44 +1647,34 @@ function findDevicePage() {
 
     const ha = document.querySelector('home-assistant');
     const main = ha?.shadowRoot?.querySelector('home-assistant-main');
-    // Panels live under home-assistant-main → partial-panel-resolver; fall
-    // back to the root and direct lookups for older layouts.
     const mainRoot = main?.shadowRoot || ha?.shadowRoot;
-    const panel = mainRoot?.querySelector('partial-panel-resolver')?.shadowRoot?.querySelector('ha-panel-config')
-        ?? mainRoot?.querySelector('ha-panel-config');
-    const root = panel?.shadowRoot;
-    if (!root) return null;
+    if (!mainRoot) return null;
 
-    const direct = root.querySelector('ha-config-device-page');
-    if (direct) return direct;
-
-    function search(node, depth) {
-        if (!node || depth <= 0) return null;
-        for (const child of node.children) {
-            if (child.tagName === 'HA-CONFIG-DEVICE-PAGE') return child;
-            if (child.shadowRoot) {
-                const found = search(child.shadowRoot, depth - 1);
-                if (found) return found;
-            }
-        }
-        return null;
-    }
-    return search(root, 8);
+    // Search for the page element directly. The panel chain between the main
+    // layout and the device page has changed shape across HA releases (panel
+    // wrappers that render without their own shadow root, Web Awesome drawer
+    // wrappers), but a light-DOM query on the main layout's shadow root
+    // matches the page tag in every observed layout.
+    return mainRoot.querySelector('ha-config-device-page')
+        || ha?.shadowRoot?.querySelector('ha-config-device-page')
+        || null;
 }
 
 function findDevicePageAnchor(page) {
-    const shadow = page?.shadowRoot;
-    if (!shadow) return null;
+    // The page may render into its own shadow root or directly into the light
+    // DOM (some HA panel/page elements do); query whichever holds the content.
+    const scope = page?.shadowRoot || page;
+    if (!scope) return null;
 
     // Preferred: above the device info card, so the note sits at the top of
     // the info column on both wide and narrow layouts.
-    const infoCard = shadow.querySelector('ha-device-info-card');
+    const infoCard = scope.querySelector('ha-device-info-card');
     if (infoCard?.parentElement) {
         return { parent: infoCard.parentElement, before: infoCard };
     }
 
     // Fallbacks for HA versions with a different page layout.
-    const container = shadow.querySelector('.column, .columns, .content');
+    const container = scope.querySelector('.column, .columns, .content');
     if (container) {
         return { parent: container, before: container.firstChild };
     }
@@ -1693,7 +1683,7 @@ function findDevicePageAnchor(page) {
 }
 
 function injectNotesIntoDevicePage(page) {
-    if (!page || !page.shadowRoot) return;
+    if (!page) return;
     if (!devicePageDisplayEnabled()) return;
 
     const deviceId = page.deviceId;
@@ -1718,7 +1708,8 @@ function injectNotesIntoDevicePage(page) {
     }
 
     // Remove any stale card from a previous device (page element is reused).
-    const existing = page.shadowRoot.querySelector('entity-notes-card');
+    const scope = page.shadowRoot || page;
+    const existing = scope.querySelector('entity-notes-card');
     if (existing) existing.remove();
 
     const notesCard = document.createElement('entity-notes-card');
@@ -1741,9 +1732,12 @@ function watchDevicePage(page) {
 
     let observedRoot = null;
     const attach = () => {
-        if (!page.shadowRoot) return;
-        if (!observedRoot) {
-            observedRoot = page.shadowRoot;
+        // Observe the shadow root when the page has one; otherwise the page
+        // element itself (light-DOM rendering).
+        const target = page.shadowRoot || page;
+        if (target !== observedRoot) {
+            if (page._entityNotesPageObserver) page._entityNotesPageObserver.disconnect();
+            observedRoot = target;
             const pageObserver = new MutationObserver(() => {
                 if (!devicePageDisplayEnabled()) return;
                 // Clear the stale flag when the page element has been reused
@@ -1754,7 +1748,8 @@ function watchDevicePage(page) {
                 }
                 injectNotesIntoDevicePage(page);
             });
-            pageObserver.observe(page.shadowRoot, { childList: true, subtree: true });
+            page._entityNotesPageObserver = pageObserver;
+            pageObserver.observe(target, { childList: true, subtree: true });
         }
         // Also retry injection here: the content may render after the first
         // attempt, and a quiet page may not re-render on its own.

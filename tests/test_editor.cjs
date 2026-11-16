@@ -176,36 +176,23 @@ page.deviceId='device3';
 DP.injectNotesIntoDevicePage(page);
 assert.equal(page._entityNotesPageInjectedFor,undefined);
 console.log('PASS: unrecognised device page layout stops retrying without errors');
-// Page lookup walks the config panel shadow tree, direct child first.
-page=fakeDevicePage('device1');page.tagName='HA-CONFIG-DEVICE-PAGE';
+// Page lookup finds the element directly under the main layout shadow root.
+page=fakeDevicePage('device1');
 ctx2.ha={shadowRoot:{querySelector:selector=>selector==='home-assistant-main'?ctx2.main:null}};
-ctx2.panelRoot={querySelector:selector=>selector==='ha-config-device-page'?page:null,children:[]};
-ctx2.panelEl={shadowRoot:ctx2.panelRoot};
-ctx2.resolver={shadowRoot:{querySelector:selector=>selector==='ha-panel-config'?ctx2.panelEl:null}};
-ctx2.main={shadowRoot:{querySelector:selector=>selector==='partial-panel-resolver'?ctx2.resolver:null}};
-ctx2.panelRoot=ctx2.panelRoot;
+ctx2.main={shadowRoot:{querySelector:selector=>selector==='ha-config-device-page'?page:null}};
 assert.equal(DP.findDevicePage(),page);
 ctx2.window.entityNotes.showNoteOnDevicePage=false;
 assert.equal(DP.findDevicePage(),null);
 ctx2.window.entityNotes.showNoteOnDevicePage=true;
-// Nested page element found through child shadow roots.
-ctx2.panelRoot.querySelector=()=>null;
-const nestedChild={shadowRoot:{querySelector:()=>null,children:[page]}};
-ctx2.panelRoot.children=[nestedChild];
-assert.equal(DP.findDevicePage(),page);
-ctx2.panelRoot.children=[];
-assert.equal(DP.findDevicePage(),null);
 // Older layouts without home-assistant-main fall back to the root shadow.
 ctx2.main=null;
-ctx2.ha.shadowRoot.querySelector=selector=>selector==='partial-panel-resolver'?ctx2.resolver:null;
-ctx2.panelRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+ctx2.ha.shadowRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
 assert.equal(DP.findDevicePage(),page);
 ctx2.ha.shadowRoot.querySelector=()=>null;
 assert.equal(DP.findDevicePage(),null);
 console.log('PASS: device page lookup finds direct and nested page elements');
 // The per-page watcher re-injects when the device changes.
-page=fakeDevicePage('device1');page.tagName='HA-CONFIG-DEVICE-PAGE';
-ctx2.panelRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+page=fakeDevicePage('device1');
 let observerCallback;const realObserver=ctx2.MutationObserver;
 ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(){}};
 DP.watchDevicePage(page);
@@ -217,8 +204,7 @@ assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
 assert.equal(page.shadowRoot.infoCard.parentElement.inserts[1].node.attributes['device-id'],'device4');
 console.log('PASS: device page watcher re-injects when the element is reused');
 // A page whose content renders late still gets the card from retry attempts.
-page=fakeDevicePage('device5',false);page.tagName='HA-CONFIG-DEVICE-PAGE';
-ctx2.panelRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+page=fakeDevicePage('device5',false);
 ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(){}};
 DP.watchDevicePage(page);
 ctx2.MutationObserver=realObserver;
@@ -228,4 +214,35 @@ observerCallback();
 assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
 assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['device-id'],'device5');
 console.log('PASS: device page card injects once content renders late');
+// Pages that render into the light DOM (no shadow root) are supported too.
+function fakeLightPage(deviceId,withInfoCard=true){
+ const p={deviceId,staleCard:null,
+  querySelector(sel){
+   if(sel==='ha-device-info-card')return p.infoCard;
+   if(sel==='entity-notes-card')return p.staleCard;
+   if(sel==='.column, .columns, .content')return null;
+   return null;},
+  infoCard:withInfoCard?{parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}}:null};
+ return p;
+}
+page=fakeLightPage('deviceL');
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.infoCard.parentElement.inserts.length,1);
+assert.equal(page.infoCard.parentElement.inserts[0].node.attributes['device-id'],'deviceL');
+page.deviceId='deviceM';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.infoCard.parentElement.inserts.length,2);
+assert.equal(page.infoCard.parentElement.inserts[1].node.attributes['device-id'],'deviceM');
+console.log('PASS: light-DOM device pages get the card and switch devices');
+// The watcher observes a light-DOM page element when no shadow root exists.
+page=fakeLightPage('deviceN');
+ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(root){this.rootObserved=root;}};
+DP.watchDevicePage(page);
+assert.equal(page.infoCard.parentElement.inserts.length,1);
+page.deviceId='deviceO';
+observerCallback();
+assert.equal(page.infoCard.parentElement.inserts.length,2);
+assert.equal(page.infoCard.parentElement.inserts[1].node.attributes['device-id'],'deviceO');
+ctx2.MutationObserver=realObserver;
+console.log('PASS: watcher observes light-DOM pages and follows device changes');
 })().catch(e=>{console.error(e);process.exitCode=1});
