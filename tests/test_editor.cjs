@@ -177,7 +177,8 @@ assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['
 assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['context'],'device-page');
 assert.equal(page._entityNotesPageInjectedFor,'device1');
 console.log('PASS: device page injection inserts card above info card');
-// Same device id: no duplicate card.
+// Same device id with the card still present: no duplicate card.
+page.shadowRoot.staleCard=page.shadowRoot.infoCard.parentElement.inserts[0].node;
 DP.injectNotesIntoDevicePage(page);
 assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
 console.log('PASS: device page injection is keyed to the device id');
@@ -219,6 +220,17 @@ DP.injectNotesIntoDevicePage(page);
 assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
 assert.equal(page._entityNotesPageInjectedFor,'device6');
 console.log('PASS: device page injection retries until the device id is ready');
+// A card wiped by an HA re-render is restored without duplicating.
+page=fakeDevicePage('device7');
+DP.injectNotesIntoDevicePage(page);
+page.shadowRoot.staleCard=null;
+page._entityNotesPageWatcher=true;
+DP.watchDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+page.shadowRoot.staleCard=page.shadowRoot.infoCard.parentElement.inserts[1].node;
+DP.watchDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+console.log('PASS: a wiped device page card is restored without duplicates');
 // Page lookup finds the element directly under the main layout shadow root.
 page=fakeDevicePage('device1');
 ctx2.ha={shadowRoot:{querySelector:selector=>selector==='home-assistant-main'?ctx2.main:null}};

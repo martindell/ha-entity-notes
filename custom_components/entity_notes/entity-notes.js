@@ -1734,7 +1734,13 @@ function injectNotesIntoDevicePage(page) {
     // A page whose device ID is not assigned yet is retried instead: comparing
     // undefined to undefined here would otherwise park the page forever.
     const deviceId = page.deviceId;
-    if (deviceId && page._entityNotesPageInjectedFor === deviceId) return;
+    if (deviceId && page._entityNotesPageInjectedFor === deviceId) {
+        // The flag only proves we injected once: HA re-renders can wipe the
+        // card out of the page. Restore it instead of skipping.
+        const scope = page.shadowRoot || page;
+        if (scope.querySelector('entity-notes-card')) return;
+        delete page._entityNotesPageInjectedFor;
+    }
 
     const anchor = deviceId ? findDevicePageAnchor(page) : null;
     if (!deviceId || !anchor) {
@@ -1772,7 +1778,13 @@ function injectNotesIntoDevicePage(page) {
 }
 
 function watchDevicePage(page) {
-    if (!page || page._entityNotesPageWatcher) return;
+    if (!page) return;
+    if (page._entityNotesPageWatcher) {
+        // Already watching. Re-run the injection check so the periodic poll
+        // restores a card if an HA re-render removed it.
+        injectNotesIntoDevicePage(page);
+        return;
+    }
     page._entityNotesPageWatcher = true;
     debugLog('Entity Notes: Watching device page for injection');
 
