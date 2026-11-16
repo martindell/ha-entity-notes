@@ -1347,6 +1347,9 @@ class EntityNotesCard extends HTMLElement {
                 }
 
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
+                // Let any other card for the same item (e.g. the device page
+                // card behind the pencil dialog) refresh itself.
+                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId } }));
             } else {
                 console.error(`Entity Notes: Save failed for ${type} - HTTP ${response.status}`);
                 const error = await response.json().catch(() => ({}));
@@ -1421,6 +1424,8 @@ class EntityNotesCard extends HTMLElement {
                 this.updateUndoRedoButtons();
                 this.autoResize();
                 debugLog(`Entity Notes: Note deleted successfully for ${type}`);
+                // Let any other card for the same item refresh itself.
+                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId } }));
             } else {
                 console.error(`Entity Notes: Delete failed for ${type} - HTTP ${response.status}`);
                 alert(localize('delete_failed', { status: response.status }));
@@ -1980,6 +1985,23 @@ function setupDialogObserver() {
             [200, 600, 1500].forEach(delay => setTimeout(checkDevicePage, delay));
         }, true);
         infoLog('Entity Notes: location-changed listener registered for device notes');
+
+        // A note saved or deleted in one card (e.g. the pencil dialog) must
+        // appear on any other card for the same device without a page refresh.
+        window.addEventListener('entity-notes-changed', (event) => {
+            const detail = (event && event.detail) || {};
+            if (detail.type !== 'device' || !detail.id) return;
+            debugLog('Entity Notes: device note changed; refreshing the device page card');
+            const page = findDevicePage();
+            if (!page) return;
+            const scope = page.shadowRoot || page;
+            const card = scope.querySelector('entity-notes-card');
+            if (card && card.noteLoaded) {
+                card.loadNote();
+            } else {
+                injectNotesIntoDevicePage(page);
+            }
+        });
 
         // Safety net for direct loads on a device URL and any missed navigation
         // events (e.g. browser back/forward).

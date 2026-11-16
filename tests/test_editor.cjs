@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 let source=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');
 new vm.Script(source);console.log('PASS: frontend parses after configuration substitution');
 source=source.slice(0,source.indexOf('// Register the custom element'))+'\nglobalThis.Card = EntityNotesCard;';
-const ctx={console,window:{location:{origin:'https://ha.local'}},document:{querySelector:()=>null},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{}};vm.createContext(ctx);vm.runInContext(source,ctx);
+const ctx={console,window:{location:{origin:'https://ha.local'},dispatchEvent(e){(this._events=this._events||[]).push(e);},addEventListener(){},removeEventListener(){}},CustomEvent:class{constructor(type,opts){this.type=type;this.detail=opts&&opts.detail;}},document:{querySelector:()=>null},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{}};vm.createContext(ctx);vm.runInContext(source,ctx);
 function card(){const c=new ctx.Card();c.noteLoaded=true;const els={};c.shadowRoot.querySelector=s=>els[s]??=({value:'',innerHTML:'',style:{},classList:{add(){},remove(){},contains(){return false},toggle(){}},focus(){},addEventListener(){},removeEventListener(){},appendChild(){},getBoundingClientRect(){return{top:0,height:0}},setAttribute(){},closest(){return null}});c.getAttribute=n=>n==='entity-id'?'sensor.test':null;for(const n of ['updateTimestampDisplay','updateCharCount','updateButtonVisibility','updateEditControlsVisibility','updateCharCountVisibility','updateUndoRedoButtons','autoResize'])c[n]=()=>{};return c;}
 (async()=>{
 let c=card();c.shadowRoot.querySelector('.entity-notes-textarea').value='saved A';c.initialState='saved A';c.renderedNote='saved A';c.switchToEditMode();c.shadowRoot.querySelector('.entity-notes-textarea').value='unsaved B';c.switchToViewMode();c.switchToEditMode();c.switchToViewMode();assert.equal(c.shadowRoot.querySelector('.entity-notes-view').innerHTML,'unsaved B');assert.equal(c.initialState,'saved A');console.log('PASS: repeated edit/blur preserves draft rendering and saved baseline');
@@ -157,6 +157,17 @@ console.log('PASS: deleting the note parks the device page card again');
 c=pageCard();let renders=0;const origRender=c.render.bind(c);c.render=()=>{renders++;origRender();};c.connectedCallback();c.connectedCallback();
 assert.equal(renders,1);
 console.log('PASS: reparenting the device page card keeps the rendered note');
+// Saves and deletes broadcast a change event so other cards can refresh.
+c=card();ctx.window._events=[];c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'saved note',rendered_note:'saved note',updated_at:5})});c.shadowRoot.querySelector('.entity-notes-textarea').value='saved note';await c.saveNote();
+assert.equal(ctx.window._events.length,1);
+assert.equal(ctx.window._events[0].type,'entity-notes-changed');
+assert.equal(ctx.window._events[0].detail.id,'sensor.test');
+console.log('PASS: saving a note broadcasts a change event');
+c=card();ctx.window._events=[];ctx.window.entityNotes.confirmDelete=false;c.authenticatedFetch=async()=>({ok:true});
+await c.deleteNote();
+assert.equal(ctx.window._events.length,1);
+assert.equal(ctx.window._events[0].type,'entity-notes-changed');
+console.log('PASS: deleting a note broadcasts a change event');
 
 // --- Device page injection ---
 const dpSource=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');
