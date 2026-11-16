@@ -184,6 +184,13 @@ class EntityNotesCard extends HTMLElement {
                     border-radius: var(--ha-card-border-radius, 12px);
                     border: 1px solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
                 }
+                /* The read-only note view blends into the card (no box in a box);
+                   the edit textarea keeps its border so editing looks distinct. */
+                :host([context="device-page"]) .entity-notes-view {
+                    border: none;
+                    background: transparent;
+                    padding: 6px 0;
+                }
                 .entity-notes-view, .entity-notes-live-preview {
                     width: 100%;
                     min-height: 36px;
