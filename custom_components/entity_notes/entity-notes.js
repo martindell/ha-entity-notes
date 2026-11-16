@@ -86,6 +86,7 @@ class EntityNotesCard extends HTMLElement {
         this.writePending = false;
         this.noteLoaded = false;
         this.loadPending = false;
+        this.loadFailed = false;
         debugLog('Entity Notes: EntityNotesCard constructor called');
     }
 
@@ -155,6 +156,7 @@ class EntityNotesCard extends HTMLElement {
         debugLog('Entity Notes: EntityNotesCard connected');
         this.render();
         this.setupEventListeners();
+        this.updateDevicePageVisibility();
     }
 
     render() {
@@ -1180,6 +1182,7 @@ class EntityNotesCard extends HTMLElement {
         if (!itemId) return;
         this.loadPending = true;
         this.noteLoaded = false;
+        this.loadFailed = false;
         this.setWritePending(false);
         const loadingView = this.shadowRoot.querySelector('.entity-notes-view');
         loadingView.textContent = localize('loading_note');
@@ -1239,13 +1242,28 @@ class EntityNotesCard extends HTMLElement {
 
         } catch (error) {
             console.error(`Entity Notes: Error loading note for ${type}:`, error);
+            this.loadFailed = true;
             const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
             viewDiv.innerHTML = `<em style="color: var(--error-color, #f44336);">${localize('error_loading_note')}</em> <button class="entity-notes-button">${localize('retry_loading_note')}</button>`;
             viewDiv.classList.remove('hidden');
         } finally {
             this.loadPending = false;
             this.setWritePending(false);
+            this.updateDevicePageVisibility();
         }
+    }
+
+    updateDevicePageVisibility() {
+        const container = this.shadowRoot.querySelector('.entity-notes-container');
+        if (!container) return;
+        // On the device page, keep pages uncluttered: the card only shows once
+        // a note exists (or when a failed load offers Retry). Creating a note
+        // happens in the device settings (pencil) dialog; an empty or deleted
+        // note hides the card again.
+        const hide = this.getAttribute('context') === 'device-page'
+            && !this.hasExistingNote
+            && !this.loadFailed;
+        container.style.display = hide ? 'none' : '';
     }
 
     setWritePending(pending) {
@@ -1308,6 +1326,7 @@ class EntityNotesCard extends HTMLElement {
             alert(localize('save_connection_error'));
         } finally {
             this.setWritePending(false);
+            this.updateDevicePageVisibility();
         }
     }
 
@@ -1380,6 +1399,7 @@ class EntityNotesCard extends HTMLElement {
             alert(localize('delete_connection_error'));
         } finally {
             this.setWritePending(false);
+            this.updateDevicePageVisibility();
         }
     }
 }
