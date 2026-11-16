@@ -1646,7 +1646,12 @@ function findDevicePage() {
     if (!devicePageDisplayEnabled()) return null;
 
     const ha = document.querySelector('home-assistant');
-    const panel = ha?.shadowRoot?.querySelector('ha-panel-config');
+    const main = ha?.shadowRoot?.querySelector('home-assistant-main');
+    // Panels live under home-assistant-main → partial-panel-resolver; fall
+    // back to the root and direct lookups for older layouts.
+    const mainRoot = main?.shadowRoot || ha?.shadowRoot;
+    const panel = mainRoot?.querySelector('partial-panel-resolver')?.shadowRoot?.querySelector('ha-panel-config')
+        ?? mainRoot?.querySelector('ha-panel-config');
     const root = panel?.shadowRoot;
     if (!root) return null;
 

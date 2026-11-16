@@ -178,8 +178,12 @@ assert.equal(page._entityNotesPageInjectedFor,undefined);
 console.log('PASS: unrecognised device page layout stops retrying without errors');
 // Page lookup walks the config panel shadow tree, direct child first.
 page=fakeDevicePage('device1');page.tagName='HA-CONFIG-DEVICE-PAGE';
-ctx2.ha={shadowRoot:{querySelector:selector=>selector==='ha-panel-config'?{shadowRoot:ctx2.panelRoot}:null}};
+ctx2.ha={shadowRoot:{querySelector:selector=>selector==='home-assistant-main'?ctx2.main:null}};
 ctx2.panelRoot={querySelector:selector=>selector==='ha-config-device-page'?page:null,children:[]};
+ctx2.panelEl={shadowRoot:ctx2.panelRoot};
+ctx2.resolver={shadowRoot:{querySelector:selector=>selector==='ha-panel-config'?ctx2.panelEl:null}};
+ctx2.main={shadowRoot:{querySelector:selector=>selector==='partial-panel-resolver'?ctx2.resolver:null}};
+ctx2.panelRoot=ctx2.panelRoot;
 assert.equal(DP.findDevicePage(),page);
 ctx2.window.entityNotes.showNoteOnDevicePage=false;
 assert.equal(DP.findDevicePage(),null);
@@ -190,6 +194,13 @@ const nestedChild={shadowRoot:{querySelector:()=>null,children:[page]}};
 ctx2.panelRoot.children=[nestedChild];
 assert.equal(DP.findDevicePage(),page);
 ctx2.panelRoot.children=[];
+assert.equal(DP.findDevicePage(),null);
+// Older layouts without home-assistant-main fall back to the root shadow.
+ctx2.main=null;
+ctx2.ha.shadowRoot.querySelector=selector=>selector==='partial-panel-resolver'?ctx2.resolver:null;
+ctx2.panelRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+assert.equal(DP.findDevicePage(),page);
+ctx2.ha.shadowRoot.querySelector=()=>null;
 assert.equal(DP.findDevicePage(),null);
 console.log('PASS: device page lookup finds direct and nested page elements');
 // The per-page watcher re-injects when the device changes.
