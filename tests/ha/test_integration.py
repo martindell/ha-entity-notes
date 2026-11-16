@@ -134,7 +134,8 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.hass.data['entity_notes']['entity_notes']['sensor.test'], 'original')
 
     async def test_device_preferences_survive_options_save(self):
-        existing = {'enable_device_notes': False, 'delete_notes_with_device': False}
+        existing = {'enable_device_notes': False, 'delete_notes_with_device': False,
+                    'show_note_on_device_page': False}
         form_data = build_options_schema(existing)({'display': {'hide_last_modified': True},
                                                    'behaviour': {}, 'advanced': {}})
         with patch.object(EntityNotesOptionsFlow, 'config_entry', new_callable=PropertyMock) as entry:
@@ -142,20 +143,26 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
             result = await EntityNotesOptionsFlow().async_step_init(form_data)
         self.assertFalse(result['data']['enable_device_notes'])
         self.assertFalse(result['data']['delete_notes_with_device'])
+        self.assertFalse(result['data']['show_note_on_device_page'])
         self.assertTrue(result['data']['hide_last_modified'])
 
     async def test_device_preferences_defaults_and_explicit_changes(self):
-        existing = {'enable_device_notes': False, 'delete_notes_with_device': False}
+        existing = {'enable_device_notes': False, 'delete_notes_with_device': False,
+                    'show_note_on_device_page': False}
         preserved = normalize_options({'display': {}, 'behaviour': {}, 'advanced': {}}, existing)
         self.assertFalse(preserved['enable_device_notes'])
         self.assertFalse(preserved['delete_notes_with_device'])
-        changed = normalize_options({'advanced': {'enable_device_notes': True},
+        self.assertFalse(preserved['show_note_on_device_page'])
+        changed = normalize_options({'advanced': {'enable_device_notes': True,
+                                                  'show_note_on_device_page': True},
                                      'behaviour': {'delete_notes_with_device': True}}, existing)
         self.assertTrue(changed['enable_device_notes'])
         self.assertTrue(changed['delete_notes_with_device'])
+        self.assertTrue(changed['show_note_on_device_page'])
         fresh = normalize_options({})
         self.assertTrue(fresh['enable_device_notes'])
         self.assertTrue(fresh['delete_notes_with_device'])
+        self.assertTrue(fresh['show_note_on_device_page'])
 
     async def test_debug_toggle_restores_previous_level(self):
         logger = logging.getLogger('entity_notes_test_debug')

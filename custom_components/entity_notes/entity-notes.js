@@ -9,6 +9,7 @@ window.entityNotes = {
     hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
     hideCharCountUntilFocus: {{HIDE_CHAR_COUNT_UNTIL_FOCUS}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
+    showNoteOnDevicePage: {{SHOW_NOTE_ON_DEVICE_PAGE}},
     confirmDelete: {{CONFIRM_DELETE}},
     showMarkdownToolbar: {{SHOW_MARKDOWN_TOOLBAR}},
     hideMarkdownPlaceholder: {{HIDE_MARKDOWN_PLACEHOLDER}},
@@ -1626,6 +1627,147 @@ function injectNotesIntoDeviceDialog(dialog) {
     }, 100);
 }
 
+// ---------------------------------------------------------------------------
+// Device page injection
+//
+// The device page (ha-config-device-page) is nested inside other shadow roots
+// (ha-panel-config and below), so the shared dialog observer — which watches
+// home-assistant's own shadow root, where HA appends dialogs — cannot see it
+// mount. Instead we search the config panel's shadow tree when the route
+// changes (HA fires 'location-changed' on the window for every navigation),
+// with a light interval as a safety net for initial loads and missed events.
+// ---------------------------------------------------------------------------
+
+function devicePageDisplayEnabled() {
+    return !!(window.entityNotes.enableDeviceNotes && window.entityNotes.showNoteOnDevicePage);
+}
+
+function findDevicePage() {
+    if (!devicePageDisplayEnabled()) return null;
+
+    const ha = document.querySelector('home-assistant');
+    const panel = ha?.shadowRoot?.querySelector('ha-panel-config');
+    const root = panel?.shadowRoot;
+    if (!root) return null;
+
+    const direct = root.querySelector('ha-config-device-page');
+    if (direct) return direct;
+
+    function search(node, depth) {
+        if (!node || depth <= 0) return null;
+        for (const child of node.children) {
+            if (child.tagName === 'HA-CONFIG-DEVICE-PAGE') return child;
+            if (child.shadowRoot) {
+                const found = search(child.shadowRoot, depth - 1);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+    return search(root, 8);
+}
+
+function findDevicePageAnchor(page) {
+    const shadow = page?.shadowRoot;
+    if (!shadow) return null;
+
+    // Preferred: above the device info card, so the note sits at the top of
+    // the info column on both wide and narrow layouts.
+    const infoCard = shadow.querySelector('ha-device-info-card');
+    if (infoCard?.parentElement) {
+        return { parent: infoCard.parentElement, before: infoCard };
+    }
+
+    // Fallbacks for HA versions with a different page layout.
+    const container = shadow.querySelector('.column, .columns, .content');
+    if (container) {
+        return { parent: container, before: container.firstChild };
+    }
+
+    return null;
+}
+
+function injectNotesIntoDevicePage(page) {
+    if (!page || !page.shadowRoot) return;
+    if (!devicePageDisplayEnabled()) return;
+
+    const deviceId = page.deviceId;
+    if (!deviceId) return;
+
+    // Give up quietly if the page layout is never recognised, so we stop
+    // retrying on every render. The pencil dialog still works as before.
+    if (page._entityNotesPageUnsupported) return;
+
+    // The page element is reused across devices; the flag is keyed to the
+    // device ID so navigating between devices re-injects instead of skipping.
+    if (page._entityNotesPageInjectedFor === deviceId) return;
+
+    const anchor = findDevicePageAnchor(page);
+    if (!anchor) {
+        page._entityNotesPageAttempts = (page._entityNotesPageAttempts || 0) + 1;
+        if (page._entityNotesPageAttempts >= 10) {
+            debugLog('Entity Notes: Device page layout not recognised; stopping device page injection');
+            page._entityNotesPageUnsupported = true;
+        }
+        return;
+    }
+
+    // Remove any stale card from a previous device (page element is reused).
+    const existing = page.shadowRoot.querySelector('entity-notes-card');
+    if (existing) existing.remove();
+
+    const notesCard = document.createElement('entity-notes-card');
+    notesCard.setAttribute('device-id', deviceId);
+    notesCard.setAttribute('type', 'device');
+    anchor.parent.insertBefore(notesCard, anchor.before);
+    page._entityNotesPageInjectedFor = deviceId;
+
+    debugLog('Entity Notes: Notes card injected onto device page for device: ' + deviceId);
+
+    setTimeout(() => {
+        notesCard.loadNote();
+    }, 100);
+}
+
+function watchDevicePage(page) {
+    if (!page || page._entityNotesPageWatcher) return;
+    page._entityNotesPageWatcher = true;
+    debugLog('Entity Notes: Watching device page for injection');
+
+    let observedRoot = null;
+    const attach = () => {
+        if (!page.shadowRoot) return;
+        if (!observedRoot) {
+            observedRoot = page.shadowRoot;
+            const pageObserver = new MutationObserver(() => {
+                if (!devicePageDisplayEnabled()) return;
+                // Clear the stale flag when the page element has been reused
+                // for a different device, so the card re-injects with the new
+                // device ID.
+                if (page._entityNotesPageInjectedFor && page._entityNotesPageInjectedFor !== page.deviceId) {
+                    delete page._entityNotesPageInjectedFor;
+                }
+                injectNotesIntoDevicePage(page);
+            });
+            pageObserver.observe(page.shadowRoot, { childList: true, subtree: true });
+        }
+        // Also retry injection here: the content may render after the first
+        // attempt, and a quiet page may not re-render on its own.
+        injectNotesIntoDevicePage(page);
+    };
+
+    // The shadow root and its content render asynchronously after the page
+    // element appears; retry until the anchor exists.
+    attach();
+    [100, 500, 1500].forEach(delay => setTimeout(attach, delay));
+}
+
+function checkDevicePage() {
+    if (!devicePageDisplayEnabled()) return;
+    const page = findDevicePage();
+    if (page) watchDevicePage(page);
+}
+
 function setupDialogObserver() {
     debugLog('Entity Notes: Setting up dialog observer');
 
@@ -1747,6 +1889,20 @@ function setupDialogObserver() {
             }, true);
             infoLog('Entity Notes: show-dialog listener registered for device notes');
         }
+
+        // Device pages are not dialogs, so HA never fires show-dialog for them.
+        // Every navigation fires 'location-changed' on the window; search for a
+        // mounted device page after short delays so its content can render.
+        window.addEventListener('location-changed', () => {
+            debugLog('Entity Notes: location-changed event detected; checking for device page');
+            [200, 600, 1500].forEach(delay => setTimeout(checkDevicePage, delay));
+        }, true);
+        infoLog('Entity Notes: location-changed listener registered for device notes');
+
+        // Safety net for direct loads on a device URL and any missed navigation
+        // events (e.g. browser back/forward).
+        window.entityNotes.devicePageTimer = setInterval(checkDevicePage, 2000);
+
         window.entityNotes.listenersAdded = true;
     }
 
@@ -1794,6 +1950,11 @@ function setupDialogObserver() {
 function initialize() {
     debugLog('Entity Notes: Initializing...');
     setupDialogObserver();
+
+    // Device pages mount deep inside the config panel rather than under the
+    // home-assistant shadow root, so check for one that may already be open.
+    // Repeat calls are harmless: the watcher and injection flag deduplicate.
+    [200, 1000, 3000].forEach(delay => setTimeout(checkDevicePage, delay));
 
     // Try to inject into any existing dialogs in shadow DOM
     const homeAssistant = document.querySelector('home-assistant');

@@ -32,7 +32,8 @@
             "data": {
               "debug_logging": "Enable debug logging",
               "max_note_length": "Maximum note length (50-2000 characters)",
-              "enable_device_notes": "Enable device notes"
+              "enable_device_notes": "Enable device notes",
+              "show_note_on_device_page": "Show the note on the device page"
             }
           }
         }
@@ -68,7 +69,8 @@
             "data": {
               "debug_logging": "Enable debug logging",
               "max_note_length": "Maximum note length (50-2000 characters)",
-              "enable_device_notes": "Enable device notes"
+              "enable_device_notes": "Enable device notes",
+              "show_note_on_device_page": "Show the note on the device page"
             }
           }
         }
@@ -116,7 +118,8 @@
             "data": {
               "debug_logging": "Enable debug logging",
               "max_note_length": "Maximum note length (50-2000 characters)",
-              "enable_device_notes": "Enable device notes"
+              "enable_device_notes": "Enable device notes",
+              "show_note_on_device_page": "Show the note on the device page"
             }
           }
         }

@@ -117,4 +117,104 @@ for (const action of ['saveNote','deleteNote']) {
     }
     console.log('PASS: '+action+' failures unlock controls and preserve draft');
 }
+
+// --- Device page injection ---
+const dpSource=fs.readFileSync('custom_components/entity_notes/entity-notes.js','utf8').replace(/\{\{[A-Z_]+\}\}/g,'false');
+const dpSlice=dpSource.slice(0,dpSource.indexOf('function setupDialogObserver'))+'\nglobalThis.DevicePage={findDevicePage,findDevicePageAnchor,injectNotesIntoDevicePage,watchDevicePage};';
+const ctx2={console,window:{location:{origin:'https://ha.local'},entityNotes:{debug:false,maxNoteLength:200,enableDeviceNotes:true,showNoteOnDevicePage:true,translations:{}}},
+ document:{querySelector:selector=>selector==='home-assistant'?ctx2.ha:null,createElement:tag=>({tagName:tag.toUpperCase(),attributes:{},setAttribute(k,v){this.attributes[k]=v;},removed:false,remove(){this.removed=true;},loadNote(){}})},
+ customElements:{get:()=>null,define:()=>{}},HTMLElement:class{attachShadow(){this.shadowRoot={}}},setTimeout:()=>0,Event:class{},alert:()=>{},
+ MutationObserver:class{constructor(callback){this.callback=callback;this.observed=null;}observe(root){this.observed=root;}}};
+vm.createContext(ctx2);vm.runInContext(dpSlice,ctx2);
+const DP=ctx2.DevicePage;
+function fakeDevicePage(deviceId,withInfoCard=true){
+ const shadow={staleCard:null,columns:null,infoCard:withInfoCard?{parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}}:null,
+  querySelector(sel){
+   if(sel==='ha-device-info-card')return shadow.infoCard;
+   if(sel==='entity-notes-card')return shadow.staleCard;
+   if(sel==='.column, .columns, .content')return shadow.columns;
+   return null;}};
+ return {deviceId,shadowRoot:shadow};
+}
+// Injects above the device info card with the device id and device type.
+let page=fakeDevicePage('device1');ctx2.window.entityNotes.showNoteOnDevicePage=true;ctx2.window.entityNotes.enableDeviceNotes=true;
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['device-id'],'device1');
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['type'],'device');
+assert.equal(page._entityNotesPageInjectedFor,'device1');
+console.log('PASS: device page injection inserts card above info card');
+// Same device id: no duplicate card.
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+console.log('PASS: device page injection is keyed to the device id');
+// Reused page element for another device: stale card removed, new id injected.
+const firstCard=page.shadowRoot.infoCard.parentElement.inserts[0].node;
+page.shadowRoot.staleCard=firstCard;page.deviceId='device2';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(firstCard.removed,true);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[1].node.attributes['device-id'],'device2');
+assert.equal(page._entityNotesPageInjectedFor,'device2');
+console.log('PASS: device switch replaces the stale card with the new device id');
+// Display toggles disable injection entirely.
+for (const disabled of ['showNoteOnDevicePage','enableDeviceNotes']) {
+ ctx2.window.entityNotes[disabled]=false;
+ page=fakeDevicePage('device1');
+ DP.injectNotesIntoDevicePage(page);
+ assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,0);
+ assert.equal(page._entityNotesPageInjectedFor,undefined);
+ ctx2.window.entityNotes[disabled]=true;
+}
+console.log('PASS: device page injection honours both display toggles');
+// Unrecognised layout gives up gracefully after repeated attempts.
+page=fakeDevicePage('device1',false);
+for(let i=0;i<12;i++)DP.injectNotesIntoDevicePage(page);
+assert.equal(page._entityNotesPageUnsupported,true);
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+page.deviceId='device3';
+DP.injectNotesIntoDevicePage(page);
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+console.log('PASS: unrecognised device page layout stops retrying without errors');
+// Page lookup walks the config panel shadow tree, direct child first.
+page=fakeDevicePage('device1');page.tagName='HA-CONFIG-DEVICE-PAGE';
+ctx2.ha={shadowRoot:{querySelector:selector=>selector==='ha-panel-config'?{shadowRoot:ctx2.panelRoot}:null}};
+ctx2.panelRoot={querySelector:selector=>selector==='ha-config-device-page'?page:null,children:[]};
+assert.equal(DP.findDevicePage(),page);
+ctx2.window.entityNotes.showNoteOnDevicePage=false;
+assert.equal(DP.findDevicePage(),null);
+ctx2.window.entityNotes.showNoteOnDevicePage=true;
+// Nested page element found through child shadow roots.
+ctx2.panelRoot.querySelector=()=>null;
+const nestedChild={shadowRoot:{querySelector:()=>null,children:[page]}};
+ctx2.panelRoot.children=[nestedChild];
+assert.equal(DP.findDevicePage(),page);
+ctx2.panelRoot.children=[];
+assert.equal(DP.findDevicePage(),null);
+console.log('PASS: device page lookup finds direct and nested page elements');
+// The per-page watcher re-injects when the device changes.
+page=fakeDevicePage('device1');page.tagName='HA-CONFIG-DEVICE-PAGE';
+ctx2.panelRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+let observerCallback;const realObserver=ctx2.MutationObserver;
+ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(){}};
+DP.watchDevicePage(page);
+ctx2.MutationObserver=realObserver;
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+page.deviceId='device4';
+observerCallback();
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,2);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[1].node.attributes['device-id'],'device4');
+console.log('PASS: device page watcher re-injects when the element is reused');
+// A page whose content renders late still gets the card from retry attempts.
+page=fakeDevicePage('device5',false);page.tagName='HA-CONFIG-DEVICE-PAGE';
+ctx2.panelRoot.querySelector=selector=>selector==='ha-config-device-page'?page:null;
+ctx2.MutationObserver=class{constructor(cb){observerCallback=cb;}observe(){}};
+DP.watchDevicePage(page);
+ctx2.MutationObserver=realObserver;
+assert.equal(page._entityNotesPageInjectedFor,undefined);
+page.shadowRoot.infoCard={parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}};
+observerCallback();
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes['device-id'],'device5');
+console.log('PASS: device page card injects once content renders late');
 })().catch(e=>{console.error(e);process.exitCode=1});
