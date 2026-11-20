@@ -455,6 +455,7 @@ class EntityNotesCard extends HTMLElement {
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
+                <div class="entity-notes-shared-warning" style="display:none; font-size:12px; color:var(--secondary-text-color); margin-top:8px;">${localize('device_type_edit_warning')}</div>
                 <div class="entity-notes-live-preview hidden"></div>
                 <div class="entity-notes-footer">
                     <div class="entity-notes-timestamp hidden"></div>
@@ -926,6 +927,7 @@ class EntityNotesCard extends HTMLElement {
         });
 
         textarea.addEventListener('focus', () => {
+            this.updateSharedWarning(true);
             if (window.entityNotes.hideMarkdownHints) {
                 textarea.placeholder = markdownPlaceholder();
             }
@@ -1151,6 +1153,7 @@ class EntityNotesCard extends HTMLElement {
     switchToEditMode() {
         if (!this.noteLoaded) return;
         this.isEditing = true;
+        this.updateSharedWarning(true);
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
@@ -1179,6 +1182,7 @@ class EntityNotesCard extends HTMLElement {
     }
 
     switchToViewMode() {
+        this.updateSharedWarning(false);
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
@@ -1210,6 +1214,11 @@ class EntityNotesCard extends HTMLElement {
         }
     }
 
+    updateSharedWarning(editing) {
+        const warning = this.shadowRoot.querySelector('.entity-notes-shared-warning');
+        warning.style.display = editing && this.noteLoaded && this.getAttribute('type') === 'device_type' ? '' : 'none';
+    }
+
     updateNoteHeading() {
         const type = this.getAttribute('type');
         const heading = this.shadowRoot.querySelector('.entity-notes-heading');
@@ -1230,6 +1239,7 @@ class EntityNotesCard extends HTMLElement {
         if (!itemId) return;
         this.loadPending = true;
         this.noteLoaded = false;
+        this.updateSharedWarning(false);
         this.loadFailed = false;
         this.setWritePending(false);
         const loadingView = this.shadowRoot.querySelector('.entity-notes-view');
@@ -1315,13 +1325,12 @@ class EntityNotesCard extends HTMLElement {
 
     updateDevicePageVisibility() {
         const container = this.shadowRoot.querySelector('.entity-notes-container');
-        // Without device-type notes, keep the existing compact page behaviour:
-        // the card only shows once
-        // a note exists (or when a failed load offers Retry). Creating a note
-        // happens in the device settings (pencil) dialog; an empty or deleted
-        // note parks the card out of the way.
+        // Individual device notes only show once a note exists (or a failed
+        // load offers Retry), regardless of the device-type notes setting.
+        // Create individual notes in the device settings (pencil) dialog.
+        // Keep the shared card visible so a device-type note can be added here.
         const hide = this.getAttribute('context') === 'device-page'
-            && !window.entityNotes.enableDeviceTypeNotes
+            && this.getAttribute('type') !== 'device_type'
             && !this.hasExistingNote
             && !this.loadFailed;
         // Hiding in place is not enough: as the column's first child the
@@ -1462,6 +1471,7 @@ class EntityNotesCard extends HTMLElement {
                 textarea.classList.remove('hidden');
                 this.updateCharCountVisibility();
                 this.isEditing = true;
+                this.updateSharedWarning(true);
                 
                 this.updateEditControlsVisibility();
                 
