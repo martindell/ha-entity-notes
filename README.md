@@ -84,6 +84,12 @@ Device notes work in the same way from device dialogs.
 
 ### Device-type notes
 
+<p align="center">
+  <img src="docs/images/entity-notes-device-type.png" alt="Device-type notes card sharing battery advice across 16 matching devices" width="760">
+</p>
+
+*One shared note, available on every device with the same manufacturer and model.*
+
 Enable **Device-type notes** under **Settings → Devices & services → Entity Notes
 → Configure → Advanced** to share instructions across devices with the same
 manufacturer and model. This option is off by default. After changing options,
