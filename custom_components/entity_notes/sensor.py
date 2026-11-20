@@ -3,7 +3,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
 
 from . import _note_text_and_updated
-from .const import DOMAIN, EVENT_STORAGE_UPDATED
+from .const import DOMAIN, EVENT_STORAGE_UPDATED, NOTE_STORE_KEYS
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -17,7 +17,7 @@ class EntityNotesSensor(SensorEntity):
     _attr_name = "Entity Notes"
     _attr_icon = "mdi:note-text"
     _attr_should_poll = False
-    _unrecorded_attributes = frozenset({"entity_notes", "device_notes"})
+    _unrecorded_attributes = frozenset(NOTE_STORE_KEYS)
 
     def __init__(self, entry):
         self._attr_unique_id = f"{entry.entry_id}_notes"
@@ -26,7 +26,7 @@ class EntityNotesSensor(SensorEntity):
     def native_value(self):
         """Return the total number of stored entity and device notes."""
         data = self.hass.data[DOMAIN]
-        return len(data["entity_notes"]) + len(data["device_notes"])
+        return sum(len(data.get(key, {})) for key in NOTE_STORE_KEYS)
 
     @property
     def extra_state_attributes(self):
@@ -34,8 +34,8 @@ class EntityNotesSensor(SensorEntity):
         data = self.hass.data[DOMAIN]
         return {
             key: {item_id: _note_text_and_updated(note)[0]
-                  for item_id, note in data[key].items()}
-            for key in ("entity_notes", "device_notes")
+                  for item_id, note in data.get(key, {}).items()}
+            for key in NOTE_STORE_KEYS
         }
 
     async def async_added_to_hass(self):

@@ -2,7 +2,7 @@
 
 DOMAIN = "entity_notes"
 
-STORAGE_VERSION = 2
+STORAGE_VERSION = 3
 STORAGE_KEY = "entity_notes.notes"
 MAX_NOTE_LENGTH = 200
 
@@ -15,6 +15,7 @@ CONF_HIDE_BUTTONS_UNTIL_FOCUS = "hide_buttons_until_focus"  # NEW
 CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS = "hide_char_count_until_focus"
 CONF_DELETE_NOTES_WITH_ENTITY = "delete_notes_with_entity"
 CONF_DELETE_NOTES_WITH_DEVICE = "delete_notes_with_device"
+CONF_ENABLE_DEVICE_TYPE_NOTES = "enable_device_type_notes"
 CONF_ENABLE_DEVICE_NOTES = "enable_device_notes"
 CONF_SHOW_NOTE_ON_DEVICE_PAGE = "show_note_on_device_page"
 CONF_SHOW_MARKDOWN_TOOLBAR = "show_markdown_toolbar"
@@ -53,6 +54,7 @@ DEFAULT_HIDE_BUTTONS_UNTIL_FOCUS = False  # NEW - maintain backward compatibilit
 DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS = False
 DEFAULT_DELETE_NOTES_WITH_ENTITY = True
 DEFAULT_DELETE_NOTES_WITH_DEVICE = True
+DEFAULT_ENABLE_DEVICE_TYPE_NOTES = False
 DEFAULT_ENABLE_DEVICE_NOTES = True
 DEFAULT_SHOW_NOTE_ON_DEVICE_PAGE = True
 DEFAULT_SHOW_MARKDOWN_TOOLBAR = True
@@ -69,3 +71,5 @@ FRONTEND_JS_PATH = "entity-notes.js"
 
 # Fired without note contents after any successful storage mutation.
 EVENT_STORAGE_UPDATED = f"{DOMAIN}_storage_updated"
+
+NOTE_STORE_KEYS = ("entity_notes", "device_notes", "device_type_notes")

@@ -82,6 +82,43 @@ fails, select **Retry** before editing.
 
 Device notes work in the same way from device dialogs.
 
+### Device-type notes
+
+Enable **Device-type notes** under **Settings → Devices & services → Entity Notes
+→ Configure → Advanced** to share instructions across devices with the same
+manufacturer and model. This option is off by default. After changing options,
+hard-refresh the browser.
+
+When enabled, device settings offer separate **Device notes** and **Device-type
+notes** sections, each with an **Edit** button. The existing **Show notes on the
+device page** option also displays these sections directly on the device page,
+including empty fields so you can create a note there.
+
+For example, keep “Installed in the kitchen” in Device notes and “Hold the button
+for five seconds to pair” in Device-type notes. Editing the shared note from any
+matching device updates the one shared text; newly added matching devices pick it
+up automatically. The shared editor identifies the manufacturer/model and number
+of matching devices, and warns that changes apply to all devices of that type.
+
+Matching ignores letter case and leading/trailing spaces, but does not guess
+aliases, similar model names, or equivalent devices reported differently by
+integrations. Both manufacturer and model must be present; otherwise the editor
+explains why sharing is unavailable. Hardware and firmware versions do not split
+a type, so describe any version-specific instructions in the note itself. If HA
+changes a device's manufacturer/model, it will use the note for its new type;
+the previous type's note is retained.
+
+The two enable switches work independently. Disabling device-type notes hides the
+feature without deleting its saved notes. Removing an individual device never
+deletes its type's shared note, even when the last device is removed. Delete a
+shared note explicitly from a matching device's editor.
+
+Shared notes are included in backup/restore. Storage upgrades automatically to
+version 3 while retaining existing notes. To roll back to a release that uses
+storage version 2, restore a Home Assistant backup taken before the upgrade;
+older releases cannot read version 3 storage.
+
+
 ## Markdown And Templates
 
 Notes support common Markdown:
@@ -119,12 +156,13 @@ The following template variables are available when relevant:
 ## Notes In Dashboard Cards
 
 The integration creates `sensor.entity_notes`. Its state is the total number of
-saved entity and device notes. Two attributes expose the saved text:
+saved entity, device and device-type notes (each shared note counts once). Three attributes expose the saved text:
 
 | Attribute | Contents |
 | --- | --- |
 | `entity_notes` | Entity ID → note text |
 | `device_notes` | Device ID → note text |
+| `device_type_notes` | JSON-encoded `[manufacturer, model]` pair → shared text; matching ignores case and surrounding spaces |
 
 These mappings update automatically after saves, deletions, entity renames and
 backup restores. Existing notes are available after startup. Note contents are
@@ -264,7 +302,8 @@ Options are grouped into three sections in the integration settings.
 | Option | Default | Description |
 | --- | --- | --- |
 | Enable device notes | `true` | Show the notes editor in device settings |
-| Show the note on the device page | `true` | Display the device note directly on the device page, above the device information card; devices without a note show nothing (create notes via the pencil icon) |
+| Enable device-type notes | `false` | Share notes across devices with the same manufacturer and model |
+| Show notes on the device page | `true` | Display enabled device/device-type notes above the device information card. With device-type notes disabled, empty notes stay hidden (create notes via the pencil icon). |
 | Debug logging | `false` | Enable detailed logs for troubleshooting |
 | Maximum note length | `200` | Character limit for each note, from 50 to 2000 |
 

@@ -136,3 +136,31 @@ For a live frontend check, throttle the network while opening a note dialog:
 Save/Delete should stay disabled until the note arrives. Block the note GET
 request to check the Retry button, then unblock it and retry. Confirm the original
 note appears and can be edited. Check `~~strikethrough~~` and the toolbar too.
+
+
+## Device-type notes
+
+Take a Home Assistant backup before deploying this feature: it migrates notes
+storage from version 2 to version 3. Rolling back the integration also requires
+restoring that backup's notes storage.
+
+1. Confirm existing entity/device notes remain after upgrading and restarting.
+2. Enable **Device-type notes** in Advanced options and hard-refresh. Open a
+   device with a known manufacturer/model: both note sections have Edit buttons.
+3. Save pairing instructions in Device-type notes. Open a second device with the
+   same manufacturer/model and check the same text; edit it and revisit the first.
+4. Save different individual notes on the two devices; confirm these stay separate.
+5. Check a different model/brand does not inherit the shared text. A device missing
+   manufacturer/model should explain why sharing is unavailable and disable edits.
+6. Turn off **Show notes on the device page**: both sections disappear from the
+   page but remain editable in device settings. Disable **Enable device notes**
+   alone: device-type notes remain available.
+7. Disable and re-enable device-type notes, refreshing after each change. Confirm
+   the shared text is retained. Test shared deletion only with a disposable note:
+   it should disappear from both devices and leave their individual notes intact.
+
+Automated coverage includes matching newly added devices, keeping shared notes
+when devices are removed, missing metadata, stale edits after metadata changes,
+v2 migration, backup/restore and failed writes. Browser regressions cover the two
+sections, independent toggles, shared update notifications and preservation of
+unsaved drafts.

@@ -30,5 +30,11 @@
   "delete_failed": "Entity Notes: Delete failed (HTTP {status}). Your session might have expired. Please reload the page.",
   "delete_connection_error": "Entity Notes: Connection error during delete. Please check your network connection.",
   "loading_note": "Loading note…",
-  "retry_loading_note": "Retry"
+  "retry_loading_note": "Retry",
+  "edit_note": "Edit",
+  "device_notes": "Device notes",
+  "device_type_notes": "Device-type notes",
+  "device_type_shared": "{manufacturer} · {model} · Shared with {count} devices. Changes apply to all devices of this type.",
+  "device_type_unavailable": "Device-type notes require a manufacturer and model. Home Assistant has not supplied both for this device.",
+  "confirm_delete_device_type": "Delete this shared note for all devices of this type?"
 }

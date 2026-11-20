@@ -10,7 +10,7 @@ def validate_notes(data):
     """Validate legacy string notes and timestamped notes before publishing."""
     if not isinstance(data, dict):
         raise ValueError("Notes must be an object")
-    for key in ("entity_notes", "device_notes"):
+    for key in ("entity_notes", "device_notes", "device_type_notes"):
         notes = data.get(key, {})
         if not isinstance(notes, dict):
             raise ValueError(f"{key} must be an object")

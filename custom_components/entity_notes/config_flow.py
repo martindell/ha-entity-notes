@@ -19,6 +19,8 @@ from .const import (
     CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS,
     CONF_DELETE_NOTES_WITH_ENTITY,
     CONF_DELETE_NOTES_WITH_DEVICE,
+    CONF_ENABLE_DEVICE_TYPE_NOTES,
+    DEFAULT_ENABLE_DEVICE_TYPE_NOTES,
     CONF_ENABLE_DEVICE_NOTES,
     CONF_SHOW_NOTE_ON_DEVICE_PAGE,
     CONF_HIDE_MARKDOWN_TOOLBAR,
@@ -74,6 +76,7 @@ SECTION_CONFIG = [
     ]),
     (SECTION_ADVANCED, [
         (CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES, bool),
+        (CONF_ENABLE_DEVICE_TYPE_NOTES, DEFAULT_ENABLE_DEVICE_TYPE_NOTES, bool),
         (CONF_SHOW_NOTE_ON_DEVICE_PAGE, DEFAULT_SHOW_NOTE_ON_DEVICE_PAGE, bool),
         (CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING, bool),
         (CONF_MAX_NOTE_LENGTH, DEFAULT_MAX_NOTE_LENGTH, vol.All(int, vol.Range(min=50, max=2000))),
@@ -131,7 +134,7 @@ def normalize_options(
     for section_key, opts in SECTION_CONFIG:
         section_data = user_input.get(section_key, user_input)
         for key, default, _ in opts:
-            if key in (CONF_ENABLE_DEVICE_NOTES, CONF_DELETE_NOTES_WITH_DEVICE, CONF_SHOW_NOTE_ON_DEVICE_PAGE):
+            if key in (CONF_ENABLE_DEVICE_TYPE_NOTES, CONF_ENABLE_DEVICE_NOTES, CONF_DELETE_NOTES_WITH_DEVICE, CONF_SHOW_NOTE_ON_DEVICE_PAGE):
                 default = current_options.get(key, default)
             flat[key] = section_data.get(key, default)
     return flat

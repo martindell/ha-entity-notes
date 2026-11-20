@@ -67,6 +67,19 @@ class DashboardTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(state)
         return state
 
+    async def test_device_type_sensor_and_migration_backup(self):
+        backup = Path(self.temp.name) / '.storage/entity_notes.notes.backup_v2'
+        self.assertEqual(json.loads(backup.read_text())['version'], 2)
+        await _set_note(self.hass, 'device_type', '["acme","switch"]', 'Pairing instructions')
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.state().state, '3')
+        self.assertEqual(self.state().attributes['device_type_notes'], {'["acme","switch"]': 'Pairing instructions'})
+        entry = self.hass.config_entries.async_entries('entity_notes')[0]
+        self.assertTrue(await self.hass.config_entries.async_reload(entry.entry_id))
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.state().attributes['device_type_notes'], {'["acme","switch"]': 'Pairing instructions'})
+        self.assertEqual(json.loads(backup.read_text())['version'], 2)
+
     async def test_initial_attributes_and_literal_template_text(self):
         self.assertEqual(self.state().state, '2')
         self.assertEqual(self.state().attributes['entity_notes'], {'sensor.battery': 'Legacy note'})

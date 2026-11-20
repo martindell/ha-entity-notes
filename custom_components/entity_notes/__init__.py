@@ -33,6 +33,9 @@ from .const import (
     CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS,
     CONF_DELETE_NOTES_WITH_ENTITY,
     CONF_DELETE_NOTES_WITH_DEVICE,
+    NOTE_STORE_KEYS,
+    CONF_ENABLE_DEVICE_TYPE_NOTES,
+    DEFAULT_ENABLE_DEVICE_TYPE_NOTES,
     CONF_ENABLE_DEVICE_NOTES,
     CONF_SHOW_NOTE_ON_DEVICE_PAGE,
     CONF_SHOW_MARKDOWN_TOOLBAR,
@@ -96,6 +99,11 @@ def _configure_debug_logging(enabled):
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
 NOTE_TARGETS = {
+    "device_type": {
+        "store_key": "device_type_notes",
+        "id_field": "device_id",
+        "event": "device_type_notes_updated",
+    },
     "entity": {
         "store_key": "entity_notes",
         "id_field": "entity_id",
@@ -121,6 +129,13 @@ class EntityNotesStore(Store):
     All callers serialize saves through write_lock. Keep the underlying Store's
     atomic I/O, cache invalidation and shutdown behaviour.
     """
+
+    async def _async_migrate_func(self, old_major_version, old_minor_version, old_data):
+        """Preserve v2 notes and prevent older releases overwriting shared notes."""
+        if old_major_version != 2:
+            raise ValueError(f"Unsupported notes storage version: {old_major_version}")
+        validate_notes(old_data)
+        return {key: old_data.get(key, {}) for key in NOTE_STORE_KEYS}
 
     async def async_save(self, data):
         self._note_write_error = None
@@ -157,6 +172,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hide_char_count_until_focus = options.get(CONF_HIDE_CHAR_COUNT_UNTIL_FOCUS, DEFAULT_HIDE_CHAR_COUNT_UNTIL_FOCUS)
     delete_notes_with_entity = options.get(CONF_DELETE_NOTES_WITH_ENTITY, DEFAULT_DELETE_NOTES_WITH_ENTITY)
     delete_notes_with_device = options.get(CONF_DELETE_NOTES_WITH_DEVICE, DEFAULT_DELETE_NOTES_WITH_DEVICE)
+    enable_device_type_notes = options.get(CONF_ENABLE_DEVICE_TYPE_NOTES, DEFAULT_ENABLE_DEVICE_TYPE_NOTES)
     enable_device_notes = options.get(CONF_ENABLE_DEVICE_NOTES, DEFAULT_ENABLE_DEVICE_NOTES)
     show_note_on_device_page = options.get(CONF_SHOW_NOTE_ON_DEVICE_PAGE, DEFAULT_SHOW_NOTE_ON_DEVICE_PAGE)
     hide_markdown_toolbar = options.get(
@@ -189,10 +205,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 file_data = await hass.async_add_executor_job(_read_storage)
                 file_version = file_data.get("version", 1)
 
+                if file_version == 2:
+                    # Retain the original file for recovery before HA migrates it.
+                    backup_path = storage_path.with_name("entity_notes.notes.backup_v2")
+                    def _backup_v2():
+                        if not backup_path.exists():
+                            atomic_write_json(backup_path, file_data)
+                    await hass.async_add_executor_job(_backup_v2)
+
                 if file_version == 1:
                     _LOGGER.warning("=" * 80)
-                    _LOGGER.warning("MIGRATING Entity Notes from v1 to v2")
-                    _LOGGER.warning("Found storage version 1, upgrading to version 2")
+                    _LOGGER.warning("MIGRATING Entity Notes from v1 to v3")
+                    _LOGGER.warning("Found storage version 1, upgrading to version 3")
 
                     old_data = file_data.get("data", {})
                     _LOGGER.warning("Found %d entity notes to migrate", len(old_data))
@@ -210,14 +234,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         _LOGGER.error("Failed to create backup: %s", backup_error)
                         return False
 
-                    # Prepare migrated data in v2 format
+                    # Prepare migrated data in the current format
                     migrated_data = {
                         "version": STORAGE_VERSION,
                         "minor_version": 1,
                         "key": STORAGE_KEY,
                         "data": {
                             "entity_notes": old_data.copy(),
-                            "device_notes": {}
+                            "device_notes": {},
+                            "device_type_notes": {}
                         }
                     }
 
@@ -228,7 +253,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                     await hass.async_add_executor_job(_write_migrated)
 
-                    _LOGGER.warning("Successfully migrated %d entity notes to v2", len(old_data))
+                    _LOGGER.warning("Successfully migrated %d entity notes to v3", len(old_data))
                     _LOGGER.warning("=" * 80)
 
             except Exception as e:
@@ -237,7 +262,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.error("Traceback: %s", traceback.format_exc())
                 return False
 
-        # Initialize storage (now v2 format if migration happened)
+        # Initialize storage (migrating v2 through the Store when needed)
         _LOGGER.debug("Initializing storage")
         store = EntityNotesStore(hass, STORAGE_VERSION, STORAGE_KEY)
 
@@ -276,6 +301,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "write_lock": asyncio.Lock(),
             "entity_notes": entity_notes_data,
             "device_notes": device_notes_data,
+            "device_type_notes": stored_data.get("device_type_notes", {}) if stored_data else {},
             "config": {
                 CONF_DEBUG_LOGGING: debug_logging,
                 CONF_MAX_NOTE_LENGTH: max_note_length,
@@ -285,6 +311,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_DELETE_NOTES_WITH_ENTITY: delete_notes_with_entity,
                 CONF_DELETE_NOTES_WITH_DEVICE: delete_notes_with_device,
                 CONF_ENABLE_DEVICE_NOTES: enable_device_notes,
+                CONF_ENABLE_DEVICE_TYPE_NOTES: enable_device_type_notes,
                 CONF_SHOW_NOTE_ON_DEVICE_PAGE: show_note_on_device_page,
                 CONF_SHOW_MARKDOWN_TOOLBAR: show_markdown_toolbar,
                 CONF_HIDE_MARKDOWN_TOOLBAR: hide_markdown_toolbar,
@@ -307,6 +334,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if enable_device_notes:
             hass.http.register_view(DeviceNotesView())
             _LOGGER.debug("DeviceNotesView registered")
+
+        hass.http.register_view(DeviceTypeNotesView())
 
         # Register the render view for Live Preview
         hass.http.register_view(EntityNotesRenderView())
@@ -463,9 +492,9 @@ async def _update_notes(hass: HomeAssistant, mutate):
     async with data["write_lock"]:
         if data.get("unloading") or hass.data.get(DOMAIN) is not data:
             raise HomeAssistantError("Entity Notes is reloading; please retry")
-        proposed = deepcopy({key: data[key] for key in ("entity_notes", "device_notes")})
+        proposed = deepcopy({key: data.get(key, {}) for key in NOTE_STORE_KEYS})
         result = mutate(proposed)
-        if proposed == {key: data[key] for key in ("entity_notes", "device_notes")}:
+        if proposed == {key: data.get(key, {}) for key in NOTE_STORE_KEYS}:
             return result
         await data["store"].async_save(proposed)
         data.update(proposed)
@@ -614,7 +643,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def backup_notes_service(call):
         """Backup all notes to a file."""
-        snapshot = deepcopy({key: hass.data[DOMAIN][key] for key in ("entity_notes", "device_notes")})
+        snapshot = deepcopy({key: hass.data[DOMAIN].get(key, {}) for key in NOTE_STORE_KEYS})
         backup_path = hass.config.path("entity_notes_backup.json")
 
         try:
@@ -639,12 +668,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
             if not isinstance(backup_data, dict):
                 raise ValueError("Backup must be an object")
-            if "entity_notes" not in backup_data and "device_notes" not in backup_data:
+            if not any(key in backup_data for key in NOTE_STORE_KEYS):
                 backup_data = {"entity_notes": backup_data, "device_notes": {}}
             validate_notes(backup_data)
 
             def restore(notes):
-                for key in ("entity_notes", "device_notes"):
+                for key in NOTE_STORE_KEYS:
                     notes[key].update(backup_data.get(key, {}))
 
             await _update_notes(hass, restore)
@@ -697,14 +726,18 @@ class NotesView(HomeAssistantView):
     requires_auth = True
     note_type = None
 
+    def resolve_target(self, request, item_id):
+        validate_target(self.note_type, item_id)
+        return item_id, {}
+
     async def _get(self, request, item_id):
         """Get a note."""
         hass = request.app["hass"]
         try:
-            validate_target(self.note_type, item_id)
+            storage_id, metadata = self.resolve_target(request, item_id)
         except ValueError as error:
             return web.json_response({"error": str(error)}, status=400)
-        raw_note = _notes_data(hass, self.note_type).get(item_id, "")
+        raw_note = _notes_data(hass, self.note_type).get(storage_id, "")
         note_text, updated_at = _note_text_and_updated(raw_note)
 
         user_name = request.query.get("user") or (
@@ -721,6 +754,7 @@ class NotesView(HomeAssistantView):
             )
 
         return web.json_response({
+            **metadata,
             "note": note_text,
             "rendered_note": rendered_note,
             "updated_at": updated_at,
@@ -733,10 +767,11 @@ class NotesView(HomeAssistantView):
         try:
             data = await request.json()
             note_input = validate_note_payload(data)
+            storage_id, metadata = self.resolve_target(request, item_id)
             note, updated_at = await _set_note(
                 hass,
                 self.note_type,
-                item_id,
+                storage_id,
                 note_input,
                 log_changes=False,
             )
@@ -746,6 +781,7 @@ class NotesView(HomeAssistantView):
             rendered_note = _render_note(hass, self.note_type, item_id, note, user_name)
 
             return web.json_response({
+                **metadata,
                 "status": "success",
                 "note": note,
                 "updated_at": updated_at,
@@ -754,6 +790,8 @@ class NotesView(HomeAssistantView):
 
         except ValueError as e:
             return web.json_response({"error": str(e)}, status=400)
+        except web.HTTPException:
+            raise
         except Exception as e:
             _LOGGER.error("Error saving note for %s: %s", _note_log_target(self.note_type, item_id), e)
             return web.json_response({"error": str(e)}, status=500)
@@ -763,12 +801,15 @@ class NotesView(HomeAssistantView):
         hass = request.app["hass"]
 
         try:
-            if await _delete_note(hass, self.note_type, item_id, log_changes=False):
+            storage_id, metadata = self.resolve_target(request, item_id)
+            if await _delete_note(hass, self.note_type, storage_id, log_changes=False):
                 return web.json_response({"status": "deleted"})
             return web.json_response({"status": "not_found"}, status=404)
 
         except ValueError as e:
             return web.json_response({"error": str(e)}, status=400)
+        except web.HTTPException:
+            raise
         except Exception as e:
             _LOGGER.error("Error deleting note for %s: %s", _note_log_target(self.note_type, item_id), e)
             return web.json_response({"error": str(e)}, status=500)
@@ -812,6 +853,54 @@ class DeviceNotesView(NotesView):
     async def delete(self, request, device_id):
         """Delete note for a device."""
         return await self._delete(request, device_id)
+
+
+def device_type_identity(device):
+    """Return a stable, unambiguous key without guessing missing metadata."""
+    manufacturer = getattr(device, "manufacturer", None)
+    model = getattr(device, "model", None)
+    if not isinstance(manufacturer, str) or not isinstance(model, str):
+        return None
+    manufacturer, model = manufacturer.strip(), model.strip()
+    if not manufacturer or not model:
+        return None
+    return json.dumps([manufacturer.casefold(), model.casefold()], ensure_ascii=True, separators=(",", ":"))
+
+
+class DeviceTypeNotesView(DeviceNotesView):
+    """Resolve shared notes on the server from a real device's metadata."""
+
+    url = "/api/device_type_notes/{device_id}"
+    name = "api:device_type_notes"
+    note_type = "device_type"
+
+    def resolve_target(self, request, item_id):
+        from homeassistant.helpers import device_registry as dr
+
+        hass = request.app["hass"]
+        if not hass.data[DOMAIN]["config"].get(CONF_ENABLE_DEVICE_TYPE_NOTES, False):
+            raise web.HTTPForbidden(reason="Device-type notes are disabled")
+        validate_target("device", item_id)
+        registry = dr.async_get(hass)
+        device = registry.async_get(item_id)
+        if device is None:
+            raise web.HTTPNotFound(reason="Device no longer exists")
+        key = device_type_identity(device)
+        if key is None:
+            raise ValueError("Device-type notes require a manufacturer and model")
+        expected = request.query.get("type_key")
+        if request.method != "GET" and expected != key:
+            raise web.HTTPConflict(reason="Device type changed; reopen the editor before saving")
+        count = sum(device_type_identity(other) == key for other in registry.devices.values())
+        return key, {"type_key": key, "manufacturer": device.manufacturer.strip(),
+                     "model": device.model.strip(), "device_count": count}
+
+    async def get(self, request, device_id):
+        try:
+            self.resolve_target(request, device_id)
+        except ValueError as error:
+            return web.json_response({"supported": False, "reason": str(error)})
+        return await self._get(request, device_id)
 
 
 class EntityNotesRenderView(HomeAssistantView):
@@ -927,6 +1016,7 @@ class EntityNotesJSView(HomeAssistantView):
             js_content = js_content.replace('{{HIDE_BUTTONS_WHEN_EMPTY}}', str(hide_buttons_when_empty).lower())
             js_content = js_content.replace('{{HIDE_BUTTONS_UNTIL_FOCUS}}', str(hide_buttons_until_focus).lower())
             js_content = js_content.replace('{{HIDE_CHAR_COUNT_UNTIL_FOCUS}}', str(hide_char_count_until_focus).lower())
+            js_content = js_content.replace('{{ENABLE_DEVICE_TYPE_NOTES}}', str(hass.data[DOMAIN]['config'].get(CONF_ENABLE_DEVICE_TYPE_NOTES, False)).lower())
             js_content = js_content.replace('{{ENABLE_DEVICE_NOTES}}', str(enable_device_notes).lower())
             js_content = js_content.replace('{{SHOW_NOTE_ON_DEVICE_PAGE}}', str(show_note_on_device_page).lower())
             js_content = js_content.replace('{{CONFIRM_DELETE}}', str(confirm_delete).lower())

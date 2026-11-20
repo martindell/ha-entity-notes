@@ -182,9 +182,10 @@ function fakeDevicePage(deviceId,withInfoCard=true){
  const shadow={staleCard:null,columns:null,infoCard:withInfoCard?{parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}}:null,
   querySelector(sel){
    if(sel==='ha-device-info-card')return shadow.infoCard;
-   if(sel==='entity-notes-card')return shadow.staleCard;
+   if(sel==='entity-notes-card'||sel==='entity-notes-card[type="device"]')return shadow.staleCard;
    if(sel==='.column, .columns, .content')return shadow.columns;
    return null;}};
+ shadow.querySelectorAll=()=>shadow.staleCard?[shadow.staleCard]:[];
  return {deviceId,shadowRoot:shadow};
 }
 // Injects above the device info card with the device id and device type.
@@ -293,10 +294,11 @@ function fakeLightPage(deviceId,withInfoCard=true){
  const p={deviceId,staleCard:null,
   querySelector(sel){
    if(sel==='ha-device-info-card')return p.infoCard;
-   if(sel==='entity-notes-card')return p.staleCard;
+   if(sel==='entity-notes-card'||sel==='entity-notes-card[type="device"]')return p.staleCard;
    if(sel==='.column, .columns, .content')return null;
    return null;},
   infoCard:withInfoCard?{parentElement:{inserts:[],insertBefore(node,before){this.inserts.push({node,before});}}}:null};
+ p.querySelectorAll=()=>p.staleCard?[p.staleCard]:[];
  return p;
 }
 page=fakeLightPage('deviceL');
@@ -319,4 +321,61 @@ assert.equal(page.infoCard.parentElement.inserts.length,2);
 assert.equal(page.infoCard.parentElement.inserts[1].node.attributes['device-id'],'deviceO');
 ctx2.MutationObserver=realObserver;
 console.log('PASS: watcher observes light-DOM pages and follows device changes');
+
+// Device-type notes are independently enabled and each kind gets one card.
+ctx2.window.entityNotes.enableDeviceTypeNotes=true;
+ctx2.window.entityNotes.enableDeviceNotes=true;
+page=fakeDevicePage('shared-device');
+DP.injectNotesIntoDevicePage(page);
+assert.deepEqual(page.shadowRoot.infoCard.parentElement.inserts.map(x=>x.node.attributes.type), ['device','device_type']);
+// Losing one section during an HA re-render must preserve the other editor.
+const surviving=page.shadowRoot.infoCard.parentElement.inserts[0].node;
+page.shadowRoot.staleCard=surviving;
+DP.injectNotesIntoDevicePage(page);
+assert.equal(surviving.removed,false);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,3);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[2].node.attributes.type,'device_type');
+ctx2.window.entityNotes.enableDeviceNotes=false;
+page=fakeDevicePage('shared-only');DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,1);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts[0].node.attributes.type,'device_type');
+ctx2.window.entityNotes.showNoteOnDevicePage=false;
+page=fakeDevicePage('hidden');DP.injectNotesIntoDevicePage(page);
+assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,0);
+console.log('PASS: device-type cards are independently enabled and obey page visibility');
+
+ctx.window.entityNotes.enableDeviceTypeNotes=true;
+c=card();c.getAttribute=n=>n==='type'?'device_type':n==='device-id'?'device1':n==='context'?'device-page':null;
+c.updateNoteHeading();
+assert.equal(c.shadowRoot.querySelector('.entity-notes-title').textContent,'device_type_notes');
+c.authenticatedFetch=async url=>{assert(url.startsWith('/api/device_type_notes/device1?'));return {ok:true,json:async()=>({note:'Shared',type_key:'["acme","switch"]',manufacturer:'<b>Acme</b>',model:'Switch',device_count:30})}};
+await c.loadNote();assert.equal(c.typeKey,'["acme","switch"]');assert.equal(c.initialState,'Shared');
+let sharedUrl;
+c.authenticatedFetch=async url=>{sharedUrl=url;return {ok:true,json:async()=>({note:'Shared'})}};
+await c.saveNote();assert(sharedUrl.includes('type_key='+encodeURIComponent('["acme","switch"]')));
+await c.deleteNote();assert(sharedUrl.includes('type_key='+encodeURIComponent('["acme","switch"]')));
+assert.equal(c.shadowRoot.querySelector('.entity-notes-container').style.display,'');
+console.log('PASS: shared editor uses dedicated API and pins writes to the loaded device type');
+
+c=card();c.getAttribute=n=>n==='type'?'device_type':n==='device-id'?'unknown':null;
+c.authenticatedFetch=async()=>({ok:true,json:async()=>({supported:false})});
+await c.loadNote();assert.equal(c.noteLoaded,false);assert.equal(c.loadFailed,false);
+assert.equal(c.shadowRoot.querySelector('.entity-notes-save').disabled,true);
+assert.equal(c.shadowRoot.querySelector('.entity-notes-edit-note').disabled,true);
+assert.equal(c.shadowRoot.querySelector('.entity-notes-shared-info').textContent,'device_type_unavailable');
+console.log('PASS: missing manufacturer/model disables writes and explains unavailability');
+
+// Refresh a matching shared card, including when another device's editor saved it.
+let listener,removed;
+ctx.window.addEventListener=(name,fn)=>{listener=fn;};
+ctx.window.removeEventListener=(name,fn)=>{removed=fn;};
+c=card();c._entityNotesRendered=true;c.getAttribute=n=>n==='type'?'device_type':n==='device-id'?'device2':null;
+c.initialState='Shared';c.shadowRoot.querySelector('.entity-notes-textarea').value='Shared';c.typeKey='shared-key';
+c.connectedCallback();let loads=0;c.loadNote=()=>{loads++;};
+listener({detail:{type:'device_type',id:'device1',typeKey:'shared-key'}});assert.equal(loads,1);
+listener({detail:{type:'device_type',id:'device1',typeKey:'different-key'}});assert.equal(loads,1);
+c.shadowRoot.querySelector('.entity-notes-textarea').value='Unsaved draft';
+listener({detail:{type:'device_type',id:'device1',typeKey:'shared-key'}});assert.equal(loads,1);
+c.disconnectedCallback();assert.equal(removed,listener);
+console.log('PASS: shared changes refresh matching cards without replacing drafts; listeners removed on disconnect');
 })().catch(e=>{console.error(e);process.exitCode=1});
