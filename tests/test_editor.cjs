@@ -345,6 +345,19 @@ assert.equal(page.shadowRoot.infoCard.parentElement.inserts.length,0);
 console.log('PASS: device-type cards are independently enabled and obey page visibility');
 
 ctx.window.entityNotes.enableDeviceTypeNotes=true;
+// Shared notes must not change the individual card's empty/load/save/delete lifecycle.
+for (const type of ['device', 'device_type']) {
+ c=pageCard();c.getAttribute=n=>n==='type'?type:n==='device-id'?'device1':n==='context'?'device-page':null;
+ c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'',rendered_note:''})});
+ await c.loadNote();assert.equal(c.style.display,type==='device'?'none':'');
+ c.shadowRoot.querySelector('.entity-notes-textarea').value='New note';
+ c.authenticatedFetch=async()=>({ok:true,json:async()=>({note:'New note',rendered_note:'New note'})});
+ await c.saveNote();assert.equal(c.style.display,'');
+ await c.deleteNote();assert.equal(c.style.display,type==='device'?'none':'');
+ c.authenticatedFetch=async()=>({ok:false,status:500});
+ await c.loadNote();assert.equal(c.style.display,'');
+}
+console.log('PASS: shared notes keep empty individual cards hidden, saved notes visible and failed loads retryable');
 c=card();c.getAttribute=n=>n==='type'?'device_type':n==='device-id'?'device1':n==='context'?'device-page':null;
 c.updateNoteHeading();
 assert.equal(c.shadowRoot.querySelector('.entity-notes-title').textContent,'device_type_notes');
