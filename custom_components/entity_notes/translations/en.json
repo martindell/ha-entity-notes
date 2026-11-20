@@ -37,7 +37,7 @@
               "enable_device_type_notes": "Enable device-type notes"
             },
             "data_description": {
-              "enable_device_type_notes": "Share notes across devices with the same manufacturer and model. Disabling this keeps saved notes."
+              "enable_device_type_notes": "Share notes across devices with the same manufacturer and model. Disabling this will not delete any saved device-type notes."
             }
           }
         }
@@ -78,7 +78,7 @@
               "enable_device_type_notes": "Enable device-type notes"
             },
             "data_description": {
-              "enable_device_type_notes": "Share notes across devices with the same manufacturer and model. Disabling this keeps saved notes."
+              "enable_device_type_notes": "Share notes across devices with the same manufacturer and model. Disabling this will not delete any saved device-type notes."
             }
           }
         }
@@ -131,7 +131,7 @@
               "enable_device_type_notes": "Enable device-type notes"
             },
             "data_description": {
-              "enable_device_type_notes": "Share notes across devices with the same manufacturer and model. Disabling this keeps saved notes."
+              "enable_device_type_notes": "Share notes across devices with the same manufacturer and model. Disabling this will not delete any saved device-type notes."
             }
           }
         }
