@@ -91,8 +91,10 @@ hard-refresh the browser.
 
 When enabled, device settings offer separate **Device notes** and **Device-type
 notes** sections, each with an **Edit** button. The existing **Show notes on the
-device page** option also displays these sections directly on the device page,
-including empty fields so you can create a note there.
+device page** option also displays these sections directly on the device page.
+Individual **Device notes** appear only when a note exists; use the device's
+pencil icon to add one. **Device-type notes** remain visible when empty so you
+can create a shared note directly on the page.
 
 For example, keep “Installed in the kitchen” in Device notes and “Hold the button
 for five seconds to pair” in Device-type notes. Editing the shared note from any
@@ -303,7 +305,7 @@ Options are grouped into three sections in the integration settings.
 | --- | --- | --- |
 | Enable device notes | `true` | Show the notes editor in device settings |
 | Enable device-type notes | `false` | Share notes across devices with the same manufacturer and model |
-| Show notes on the device page | `true` | Display enabled device/device-type notes above the device information card. With device-type notes disabled, empty notes stay hidden (create notes via the pencil icon). |
+| Show notes on the device page | `true` | Display enabled device/device-type notes above the device information card. Empty individual device notes stay hidden (create notes via the pencil icon); enabled device-type notes remain visible when empty. |
 | Debug logging | `false` | Enable detailed logs for troubleshooting |
 | Maximum note length | `200` | Character limit for each note, from 50 to 2000 |
 
