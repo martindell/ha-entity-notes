@@ -8,6 +8,7 @@ window.entityNotes = {
     hideButtonsWhenEmpty: {{HIDE_BUTTONS_WHEN_EMPTY}},
     hideButtonsUntilFocus: {{HIDE_BUTTONS_UNTIL_FOCUS}},
     hideCharCountUntilFocus: {{HIDE_CHAR_COUNT_UNTIL_FOCUS}},
+    enableDeviceTypeNotes: {{ENABLE_DEVICE_TYPE_NOTES}},
     enableDeviceNotes: {{ENABLE_DEVICE_NOTES}},
     showNoteOnDevicePage: {{SHOW_NOTE_ON_DEVICE_PAGE}},
     confirmDelete: {{CONFIRM_DELETE}},
@@ -162,7 +163,25 @@ class EntityNotesCard extends HTMLElement {
             this.render();
             this.setupEventListeners();
         }
+        this.updateNoteHeading();
+        if (!this._noteChangedListener) {
+            this._noteChangedListener = (event) => {
+                const d = event.detail || {};
+                const type = this.getAttribute('type') || 'entity';
+                const id = this.getAttribute('device-id') || this.getAttribute('entity-id');
+                const same = type === 'device_type' ? this.typeKey && d.typeKey === this.typeKey : d.id === id;
+                const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
+                if (d.source !== this && d.type === type && same && this.noteLoaded && !this.isEditing
+                    && textarea.value === this.initialState) this.loadNote();
+            };
+            window.addEventListener('entity-notes-changed', this._noteChangedListener);
+        }
         this.updateDevicePageVisibility();
+    }
+
+    disconnectedCallback() {
+        if (this._noteChangedListener) window.removeEventListener('entity-notes-changed', this._noteChangedListener);
+        this._noteChangedListener = null;
     }
 
     render() {
@@ -401,6 +420,11 @@ class EntityNotesCard extends HTMLElement {
                 }
             </style>
             <div class="entity-notes-container">
+                <div class="entity-notes-heading" style="display:none; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+                    <strong class="entity-notes-title"></strong>
+                    <button class="entity-notes-button entity-notes-edit-note" disabled>${localize('edit_note')}</button>
+                </div>
+                <div class="entity-notes-shared-info" style="display:none; font-size:12px; color:var(--secondary-text-color); margin-bottom:8px;"></div>
                 <div class="entity-notes-view hidden"></div>
                 <div class="entity-notes-edit-controls hidden">
                     <div class="entity-notes-persistent-toolbar">
@@ -431,6 +455,7 @@ class EntityNotesCard extends HTMLElement {
                     maxlength="${maxLength}"
                     rows="1"
                 ></textarea>
+                <div class="entity-notes-shared-warning" style="display:none; font-size:12px; color:var(--secondary-text-color); margin-top:8px;">${localize('device_type_edit_warning')}</div>
                 <div class="entity-notes-live-preview hidden"></div>
                 <div class="entity-notes-footer">
                     <div class="entity-notes-timestamp hidden"></div>
@@ -902,6 +927,7 @@ class EntityNotesCard extends HTMLElement {
         });
 
         textarea.addEventListener('focus', () => {
+            this.updateSharedWarning(true);
             if (window.entityNotes.hideMarkdownHints) {
                 textarea.placeholder = markdownPlaceholder();
             }
@@ -1011,7 +1037,7 @@ class EntityNotesCard extends HTMLElement {
                         body: JSON.stringify({ 
                             note: text,
                             entity_id: type === 'entity' ? itemId : undefined,
-                            device_id: type === 'device' ? itemId : undefined,
+                            device_id: type !== 'entity' ? itemId : undefined,
                             user_name: this.currentUserName
                         })
                     });
@@ -1127,6 +1153,7 @@ class EntityNotesCard extends HTMLElement {
     switchToEditMode() {
         if (!this.noteLoaded) return;
         this.isEditing = true;
+        this.updateSharedWarning(true);
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
@@ -1155,6 +1182,7 @@ class EntityNotesCard extends HTMLElement {
     }
 
     switchToViewMode() {
+        this.updateSharedWarning(false);
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
         const charCount = this.shadowRoot.querySelector('.entity-notes-char-count');
@@ -1186,16 +1214,32 @@ class EntityNotesCard extends HTMLElement {
         }
     }
 
+    updateSharedWarning(editing) {
+        const warning = this.shadowRoot.querySelector('.entity-notes-shared-warning');
+        warning.style.display = editing && this.noteLoaded && this.getAttribute('type') === 'device_type' ? '' : 'none';
+    }
+
+    updateNoteHeading() {
+        const type = this.getAttribute('type');
+        const heading = this.shadowRoot.querySelector('.entity-notes-heading');
+        if (heading && window.entityNotes.enableDeviceTypeNotes && (type === 'device' || type === 'device_type')) {
+            heading.style.display = 'flex';
+            this.shadowRoot.querySelector('.entity-notes-title').textContent = localize(type === 'device_type' ? 'device_type_notes' : 'device_notes');
+            this.shadowRoot.querySelector('.entity-notes-edit-note').onclick = () => this.switchToEditMode();
+        }
+    }
+
     async loadNote() {
         if (this.loadPending || this.writePending) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
-        const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
+        const apiPath = type === 'device_type' ? 'device_type_notes' : type === 'device' ? 'device_notes' : 'entity_notes';
 
         debugLog(`Entity Notes: Loading note for ${type} ${itemId}`);
         if (!itemId) return;
         this.loadPending = true;
         this.noteLoaded = false;
+        this.updateSharedWarning(false);
         this.loadFailed = false;
         this.setWritePending(false);
         const loadingView = this.shadowRoot.querySelector('.entity-notes-view');
@@ -1210,6 +1254,18 @@ class EntityNotesCard extends HTMLElement {
                 throw new Error(`HTTP ${response.status}`);
             }
             const data = await response.json();
+            this.typeKey = data.type_key;
+            const sharedInfo = this.shadowRoot.querySelector('.entity-notes-shared-info');
+            if (type === 'device_type') {
+                sharedInfo.style.display = '';
+                sharedInfo.textContent = data.supported === false ? localize('device_type_unavailable') :
+                    localize('device_type_shared', {manufacturer: data.manufacturer, model: data.model, count: data.device_count});
+                if (data.supported === false) {
+                    loadingView.textContent = '';
+                    this.hasExistingNote = false;
+                    return;
+                }
+            }
 
             const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
             const viewDiv = this.shadowRoot.querySelector('.entity-notes-view');
@@ -1269,11 +1325,12 @@ class EntityNotesCard extends HTMLElement {
 
     updateDevicePageVisibility() {
         const container = this.shadowRoot.querySelector('.entity-notes-container');
-        // On the device page, keep pages uncluttered: the card only shows once
-        // a note exists (or when a failed load offers Retry). Creating a note
-        // happens in the device settings (pencil) dialog; an empty or deleted
-        // note parks the card out of the way.
+        // Individual device notes only show once a note exists (or a failed
+        // load offers Retry), regardless of the device-type notes setting.
+        // Create individual notes in the device settings (pencil) dialog.
+        // Keep the shared card visible so a device-type note can be added here.
         const hide = this.getAttribute('context') === 'device-page'
+            && this.getAttribute('type') !== 'device_type'
             && !this.hasExistingNote
             && !this.loadFailed;
         // Hiding in place is not enough: as the column's first child the
@@ -1299,7 +1356,7 @@ class EntityNotesCard extends HTMLElement {
 
     setWritePending(pending) {
         this.writePending = pending;
-        for (const selector of ['.entity-notes-save', '.entity-notes-delete']) {
+        for (const selector of ['.entity-notes-save', '.entity-notes-delete', '.entity-notes-edit-note']) {
             const button = this.shadowRoot.querySelector(selector);
             if (button) button.disabled = pending || !this.noteLoaded;
         }
@@ -1309,7 +1366,7 @@ class EntityNotesCard extends HTMLElement {
         if (this.writePending || !this.noteLoaded) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
-        const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
+        const apiPath = type === 'device_type' ? 'device_type_notes' : type === 'device' ? 'device_notes' : 'entity_notes';
         const textarea = this.shadowRoot.querySelector('.entity-notes-textarea');
         const originalDraft = textarea.value;
         const note = originalDraft.trim();
@@ -1318,7 +1375,7 @@ class EntityNotesCard extends HTMLElement {
         debugLog(`Entity Notes: Saving note for ${type} ${itemId}: ${note}`);
 
         try {
-            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}`, {
+            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}${this.typeKey ? `?type_key=${encodeURIComponent(this.typeKey)}` : ''}`, {
                 method: 'POST',
                 body: JSON.stringify({ 
                     note,
@@ -1349,7 +1406,7 @@ class EntityNotesCard extends HTMLElement {
                 debugLog(`Entity Notes: Note saved successfully for ${type}, hasExistingNote: ${this.hasExistingNote}`);
                 // Let any other card for the same item (e.g. the device page
                 // card behind the pencil dialog) refresh itself.
-                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId } }));
+                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId, typeKey: this.typeKey, source: this } }));
             } else {
                 console.error(`Entity Notes: Save failed for ${type} - HTTP ${response.status}`);
                 const error = await response.json().catch(() => ({}));
@@ -1368,11 +1425,11 @@ class EntityNotesCard extends HTMLElement {
         if (this.writePending || !this.noteLoaded) return;
         const itemId = this.getAttribute('entity-id') || this.getAttribute('device-id');
         const type = this.getAttribute('type') || 'entity';
-        const apiPath = type === 'device' ? 'device_notes' : 'entity_notes';
+        const apiPath = type === 'device_type' ? 'device_type_notes' : type === 'device' ? 'device_notes' : 'entity_notes';
 
         // New confirmation logic
         if (window.entityNotes.confirmDelete === true || window.entityNotes.confirmDelete === 'true') {
-            if (!confirm(localize('confirm_delete', { type, item_id: itemId }))) {
+            if (!confirm(type === 'device_type' ? localize('confirm_delete_device_type') : localize('confirm_delete', { type, item_id: itemId }))) {
                 debugLog(`Entity Notes: Delete cancelled for ${type} ${itemId}`); // User cancelled deletion
                 return;
             }
@@ -1384,7 +1441,7 @@ class EntityNotesCard extends HTMLElement {
         debugLog(`Entity Notes: Deleting note for ${type} ${itemId}`);
 
         try {
-            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}`, {
+            const response = await this.authenticatedFetch(`/api/${apiPath}/${itemId}${this.typeKey ? `?type_key=${encodeURIComponent(this.typeKey)}` : ''}`, {
                 method: 'DELETE'
             });
 
@@ -1414,6 +1471,7 @@ class EntityNotesCard extends HTMLElement {
                 textarea.classList.remove('hidden');
                 this.updateCharCountVisibility();
                 this.isEditing = true;
+                this.updateSharedWarning(true);
                 
                 this.updateEditControlsVisibility();
                 
@@ -1425,7 +1483,7 @@ class EntityNotesCard extends HTMLElement {
                 this.autoResize();
                 debugLog(`Entity Notes: Note deleted successfully for ${type}`);
                 // Let any other card for the same item refresh itself.
-                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId } }));
+                window.dispatchEvent(new CustomEvent('entity-notes-changed', { detail: { type, id: itemId, typeKey: this.typeKey, source: this } }));
             } else {
                 console.error(`Entity Notes: Delete failed for ${type} - HTTP ${response.status}`);
                 alert(localize('delete_failed', { status: response.status }));
@@ -1614,7 +1672,7 @@ function findDeviceId(dialog) {
 }
 
 function injectNotesIntoDeviceDialog(dialog) {
-    if (!window.entityNotes.enableDeviceNotes) {
+    if (!(window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes)) {
         debugLog('Entity Notes: Device notes disabled in config');
         return;
     }
@@ -1673,23 +1731,15 @@ function injectNotesIntoDeviceDialog(dialog) {
         return;
     }
 
-    // Remove any stale card from a previous device (dialog element is reused)
-    const existing = contentArea.querySelector('entity-notes-card');
-    if (existing) existing.remove();
-
-    // Create and inject notes card
-    const notesCard = document.createElement('entity-notes-card');
-    notesCard.setAttribute('device-id', deviceId);
-    notesCard.setAttribute('type', 'device');
-    contentArea.appendChild(notesCard);
+    for (const card of contentArea.querySelectorAll('entity-notes-card')) card.remove();
+    for (const type of enabledDeviceNoteTypes()) {
+        const notesCard = document.createElement('entity-notes-card');
+        notesCard.setAttribute('device-id', deviceId);
+        notesCard.setAttribute('type', type);
+        contentArea.appendChild(notesCard);
+        setTimeout(() => notesCard.loadNote(), 100);
+    }
     dialog._entityNotesDeviceInjectedFor = deviceId;
-
-    debugLog('Entity Notes: Notes card injected for device: ' + deviceId);
-
-    // Load the note after a short delay
-    setTimeout(() => {
-        notesCard.loadNote();
-    }, 100);
 }
 
 // ---------------------------------------------------------------------------
@@ -1703,8 +1753,12 @@ function injectNotesIntoDeviceDialog(dialog) {
 // with a light interval as a safety net for initial loads and missed events.
 // ---------------------------------------------------------------------------
 
+function enabledDeviceNoteTypes() {
+    return [window.entityNotes.enableDeviceNotes && 'device', window.entityNotes.enableDeviceTypeNotes && 'device_type'].filter(Boolean);
+}
+
 function devicePageDisplayEnabled() {
-    return !!(window.entityNotes.enableDeviceNotes && window.entityNotes.showNoteOnDevicePage);
+    return !!((window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) && window.entityNotes.showNoteOnDevicePage);
 }
 
 function findDevicePage() {
@@ -1747,6 +1801,16 @@ function findDevicePageAnchor(page) {
     return null;
 }
 
+function insertDevicePageNote(page, anchor, deviceId, type) {
+    const notesCard = document.createElement('entity-notes-card');
+    notesCard.setAttribute('device-id', deviceId);
+    notesCard.setAttribute('type', type);
+    notesCard.setAttribute('context', 'device-page');
+    notesCard._entityNotesPage = page;
+    anchor.parent.insertBefore(notesCard, anchor.before);
+    setTimeout(() => notesCard.loadNote(), 100);
+}
+
 function injectNotesIntoDevicePage(page) {
     if (!page) return;
     if (!devicePageDisplayEnabled()) return;
@@ -1764,8 +1828,13 @@ function injectNotesIntoDevicePage(page) {
         // The flag only proves we injected once: HA re-renders can wipe the
         // card out of the page. Restore it instead of skipping.
         const scope = page.shadowRoot || page;
-        if (scope.querySelector('entity-notes-card')) return;
-        delete page._entityNotesPageInjectedFor;
+        const missingTypes = enabledDeviceNoteTypes().filter(type => !scope.querySelector(`entity-notes-card[type="${type}"]`));
+        if (!missingTypes.length) return;
+        const anchor = findDevicePageAnchor(page);
+        if (!anchor) return;
+        // Restore only missing sections: preserve a surviving editor's draft.
+        for (const type of missingTypes) insertDevicePageNote(page, anchor, deviceId, type);
+        return;
     }
 
     const anchor = deviceId ? findDevicePageAnchor(page) : null;
@@ -1782,28 +1851,12 @@ function injectNotesIntoDevicePage(page) {
         return;
     }
 
-    // Remove any stale card from a previous device (page element is reused).
     const scope = page.shadowRoot || page;
-    const existing = scope.querySelector('entity-notes-card');
-    if (existing) existing.remove();
-
-    const notesCard = document.createElement('entity-notes-card');
-    notesCard.setAttribute('device-id', deviceId);
-    notesCard.setAttribute('type', 'device');
-    // Scoped styling hook: on the device page the note renders as a proper
-    // card (see :host([context="device-page"]) in the card styles).
-    notesCard.setAttribute('context', 'device-page');
-    // The card needs the page element to find its way back above the info
-    // card after being parked (see updateDevicePageVisibility).
-    notesCard._entityNotesPage = page;
-    anchor.parent.insertBefore(notesCard, anchor.before);
+    for (const card of scope.querySelectorAll('entity-notes-card')) card.remove();
+    for (const type of enabledDeviceNoteTypes()) {
+        insertDevicePageNote(page, anchor, deviceId, type);
+    }
     page._entityNotesPageInjectedFor = deviceId;
-
-    debugLog('Entity Notes: Notes card injected onto device page for device: ' + deviceId);
-
-    setTimeout(() => {
-        notesCard.loadNote();
-    }, 100);
 }
 
 function watchDevicePage(page) {
@@ -1891,7 +1944,7 @@ function setupDialogObserver() {
                     }
 
                     // Check if this is a device registry detail dialog (device settings)
-                    if (window.entityNotes.enableDeviceNotes && node.tagName === 'DIALOG-DEVICE-REGISTRY-DETAIL') {
+                    if ((window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) && node.tagName === 'DIALOG-DEVICE-REGISTRY-DETAIL') {
                         debugLog('Entity Notes: Device registry detail dialog detected');
 
                         // Try injection with multiple delays
@@ -1904,7 +1957,7 @@ function setupDialogObserver() {
                     }
 
                     // Check if this is a device info dialog
-                    if (window.entityNotes.enableDeviceNotes && node.tagName === 'HA-DIALOG') {
+                    if ((window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) && node.tagName === 'HA-DIALOG') {
                         // Device dialogs are typically ha-dialog elements
                         // We need to check if they contain device info
                         debugLog('Entity Notes: HA-Dialog detected, checking if it is a device dialog');
@@ -1927,7 +1980,7 @@ function setupDialogObserver() {
                         });
                     });
 
-                    if (window.entityNotes.enableDeviceNotes) {
+                    if (window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) {
                         const nestedDeviceDialogs = node.querySelectorAll?.('ha-dialog');
                         nestedDeviceDialogs?.forEach(dialog => {
                             debugLog('Entity Notes: Found nested ha-dialog');
@@ -1961,7 +2014,7 @@ function setupDialogObserver() {
         // Device dialogs are also persistent (reused across navigations). HA fires
         // 'show-dialog' each time a dialog is opened, so we listen for the device
         // registry detail dialog tag to detect navigation between devices.
-        if (window.entityNotes.enableDeviceNotes) {
+        if (window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) {
             window.addEventListener('show-dialog', (event) => {
                 if (event.detail?.dialogTag !== 'dialog-device-registry-detail') return;
                 debugLog('Entity Notes: show-dialog event detected for device registry detail');
@@ -1986,23 +2039,6 @@ function setupDialogObserver() {
         }, true);
         infoLog('Entity Notes: location-changed listener registered for device notes');
 
-        // A note saved or deleted in one card (e.g. the pencil dialog) must
-        // appear on any other card for the same device without a page refresh.
-        window.addEventListener('entity-notes-changed', (event) => {
-            const detail = (event && event.detail) || {};
-            if (detail.type !== 'device' || !detail.id) return;
-            debugLog('Entity Notes: device note changed; refreshing the device page card');
-            const page = findDevicePage();
-            if (!page) return;
-            const scope = page.shadowRoot || page;
-            const card = scope.querySelector('entity-notes-card');
-            if (card && card.noteLoaded) {
-                card.loadNote();
-            } else {
-                injectNotesIntoDevicePage(page);
-            }
-        });
-
         // Safety net for direct loads on a device URL and any missed navigation
         // events (e.g. browser back/forward).
         window.entityNotes.devicePageTimer = setInterval(checkDevicePage, 2000);
@@ -2026,7 +2062,7 @@ function setupDialogObserver() {
         });
     }
 
-    if (window.entityNotes.enableDeviceNotes) {
+    if (window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) {
         // Check for device registry detail dialogs
         const existingDeviceRegistryDialogs = homeAssistant.shadowRoot.querySelectorAll('dialog-device-registry-detail');
         if (existingDeviceRegistryDialogs.length > 0) {
@@ -2069,7 +2105,7 @@ function initialize() {
             setTimeout(() => injectNotesIntoDialog(dialog), 100);
         });
 
-        if (window.entityNotes.enableDeviceNotes) {
+        if (window.entityNotes.enableDeviceNotes || window.entityNotes.enableDeviceTypeNotes) {
             // Check for device registry detail dialogs
             const existingDeviceRegistryDialogs = homeAssistant.shadowRoot.querySelectorAll('dialog-device-registry-detail');
             debugLog('Entity Notes: Found existing device registry dialogs during init: ' + existingDeviceRegistryDialogs.length);
